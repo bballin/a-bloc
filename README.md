@@ -139,5 +139,3 @@ For each `activity/create` event belonging to a connected athlete, the app downl
 
 - The activity match window is ±5 minutes on `start_date` against the most recent 30 activities. Edit `src/sync.js` / `src/garmin.js` if you need a different window or page size.
 - Sync runs sequentially across activities (one Garmin/Strava-web request at a time) to stay polite with rate limits.
-#   s t r a v a _ h e l p e r  
- 
