@@ -42,17 +42,20 @@ provided (default `3000`).
 
 ## Deploy to Railway
 
-1. Create a Railway project from this repository. Railway's Node builder installs
-   the dependencies from `package-lock.json`.
+1. Create a Railway project from this repository and use its Node builder. It
+   installs dependencies from `package-lock.json` during the build.
 2. Set the Railway **Start Command** to:
 
    ```sh
    bash start.sh
    ```
 
-   The script starts the app with `npm start`. If dependencies have not already
-   been installed, it installs production dependencies with `npm ci --omit=dev`
-   first.
+   The script starts the app with `node src/server.js`; dependency installation
+   belongs in the build, not the startup command. Railway's Node builder normally
+   installs the dependencies automatically. If your service has a custom build
+   setup that skips dependency installation, set its **Build Command** to
+   `npm ci --omit=dev`. You can also set the **Start Command** to
+   `node src/server.js` instead of using the script.
 3. Add these variables under the Railway service's **Variables**:
    - `STRAVA_CLIENT_ID`
    - `STRAVA_CLIENT_SECRET`
