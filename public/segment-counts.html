@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Segment Counts - Strava Extened</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Segment Counts</h1>
+    <div class="header-actions">
+      <a class="btn" href="/">Back to app</a>
+      <div class="units-control" aria-label="Distance units">
+        <span>Units</span>
+        <div class="units-options" role="group" aria-label="Distance unit">
+          <button type="button" data-unit="km">KM</button>
+          <span aria-hidden="true">|</span>
+          <button type="button" data-unit="mi">Miles</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="loginSection" class="card hidden">
+      <h2>Connect your Strava account</h2>
+      <a class="btn primary" href="/auth/login">Connect with Strava</a>
+    </section>
+
+    <section id="countsSection" class="hidden">
+      <div class="card">
+        <h2>Tracked segments</h2>
+        <p>Enter up to five Strava segment IDs. New activities containing any of these segments receive an updated completion count in their description.</p>
+        <form id="segmentsForm" class="stack" autocomplete="off">
+          <div id="segmentInputs" class="segment-id-list"></div>
+          <div class="row">
+            <button class="btn primary" type="submit">Save segments</button>
+            <span id="segmentsStatus" class="muted" role="status"></span>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Webhook subscription</h2>
+        <p>Strava must be able to reach this HTTPS callback URL:</p>
+        <p><code id="callbackUrl"></code></p>
+        <div class="row">
+          <button class="btn primary" id="createSubscription" type="button">Create subscription</button>
+          <button class="btn danger hidden" id="deleteSubscription" type="button">Delete subscription</button>
+          <button class="btn" id="refreshSubscription" type="button">Refresh status</button>
+          <span id="subscriptionStatus" class="muted" role="status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-heading">
+          <div>
+            <h2>Recent webhook activity</h2>
+            <p>The latest segment-count updates handled by this app.</p>
+          </div>
+          <button class="btn" id="refreshEvents" type="button">Refresh</button>
+          <span id="eventsRefreshStatus" class="muted" role="status"></span>
+        </div>
+        <table id="eventsTable">
+          <thead><tr><th>When</th><th>Activity</th><th>Status</th><th>Result</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/units.js"></script>
+  <script src="/segment-counts.js"></script>
+</body>
+</html>

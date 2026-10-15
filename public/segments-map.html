@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Segment Start Map</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    main { max-width: 1400px; }
+    #segmentMap { height: min(72vh, 760px); min-height: 420px; border: 1px solid var(--border); border-radius: 8px; }
+    .map-legend { display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+    .map-legend span { display: inline-flex; align-items: center; gap: 7px; }
+    .map-legend i { width: 11px; height: 11px; border: 2px solid currentColor; border-radius: 50%; }
+    .map-legend .kom { color: #f5c542; }
+    .map-legend .top-ten { color: #aeb4bd; }
+    .map-legend .other { color: #fc4c02; }
+    .leaflet-popup.segment-popup-kom .leaflet-popup-content-wrapper { border: 3px solid #f5c542; }
+    .leaflet-popup.segment-popup-top-ten .leaflet-popup-content-wrapper { border: 3px solid #aeb4bd; }
+    .segment-popup-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+    .segment-delete { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 0; background: transparent; color: var(--err); cursor: pointer; font: inherit; font-size: 12px; }
+    .segment-delete svg { width: 14px; height: 14px; }
+    .segment-delete-status { margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Segment Start Map</h1>
+    <div class="header-actions">
+      <a class="btn" href="/">Back to app</a>
+      <div class="units-control" aria-label="Distance units">
+        <span>Units</span>
+        <div class="units-options" role="group" aria-label="Distance unit">
+          <button type="button" data-unit="km">KM</button>
+          <span aria-hidden="true">|</span>
+          <button type="button" data-unit="mi">Miles</button>
+        </div>
+      </div>
+    </div>
+  </header>
+  <main>
+    <p id="mapStatus" class="muted">Loading local segments…</p>
+    <div class="map-legend" aria-label="Marker colors">
+      <span><i class="kom"></i>Current KOM</span>
+      <span><i class="top-ten"></i>KOM top 10</span>
+      <span><i class="other"></i>Other segments</span>
+    </div>
+    <div id="segmentMap" aria-label="Map of local segment start coordinates"></div>
+  </main>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="/units.js"></script>
+  <script>
+    const segmentDetails = new Map();
+
+    async function loadMap() {
+      const status = document.getElementById('mapStatus');
+      const response = await fetch('/api/segments/local', { credentials: 'same-origin' });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Could not load local segments.');
+
+      const map = L.map('segmentMap').setView([20, 0], 2);
+      const markers = new Map();
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
+
+      const points = body.segments.filter(segment => Number.isFinite(segment.start_lat) && Number.isFinite(segment.start_lng));
+      points.forEach(segment => {
+        const marker = L.circleMarker([segment.start_lat, segment.start_lng], markerStyle()).addTo(map);
+        markers.set(String(segment.segment_id), marker);
+        marker.bindPopup(segmentPopup(segment));
+        marker.on('popupopen', async event => {
+          const segmentId = String(segment.segment_id);
+          updatePopupRankStyle(event.popup, null);
+          event.popup.setContent(segmentPopup(segment, null, 'Loading Strava details…'));
+          try {
+            const details = await loadSegmentDetails(segmentId);
+            marker.setStyle(markerStyle(details));
+            updatePopupRankStyle(event.popup, details);
+            event.popup.setContent(segmentPopup(segment, details));
+          } catch (error) {
+            updatePopupRankStyle(event.popup, null);
+            const message = String(error.message || error).includes('Rate Limit Exceeded')
+              ? 'Unable to fetch, Rate Limit Exceeded'
+              : error.message;
+            event.popup.setContent(segmentPopup(segment, null, message));
+          }
+        });
+      });
+      document.getElementById('segmentMap').addEventListener('click', async event => {
+        const button = event.target.closest('[data-delete-segment]');
+        if (!button) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const segmentId = button.dataset.deleteSegment;
+        const segment = points.find(item => String(item.segment_id) === segmentId);
+        if (!segment || !confirm(`Delete "${segment.name}" from your local segments?`)) return;
+
+        button.disabled = true;
+        const popup = button.closest('.leaflet-popup-content');
+        const deleteStatus = popup.querySelector('.segment-delete-status');
+        deleteStatus.textContent = 'Deleting…';
+        try {
+          const response = await fetch(`/api/segments/local/${encodeURIComponent(segmentId)}`, {
+            method: 'DELETE',
+            credentials: 'same-origin',
+          }, true);
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Could not delete local segment.');
+          markers.get(segmentId).remove();
+          segmentDetails.delete(segmentId);
+          const remaining = [...markers.values()].filter(item => map.hasLayer(item)).length;
+          status.textContent = `${remaining} segment start${remaining === 1 ? '' : 's'} shown.`;
+        } catch (error) {
+          deleteStatus.textContent = error.message || 'Could not delete local segment.';
+          button.disabled = false;
+        }
+      });
+
+      if (points.length === 1) map.setView([points[0].start_lat, points[0].start_lng], 13);
+      if (points.length > 1) map.fitBounds(points.map(segment => [segment.start_lat, segment.start_lng]), { padding: [32, 32] });
+      status.textContent = points.length
+        ? `${points.length} segment start${points.length === 1 ? '' : 's'} shown.`
+        : 'No local segments with start coordinates are available.';
+    }
+
+    function loadSegmentDetails(segmentId) {
+      if (!segmentDetails.has(segmentId)) {
+        const request = fetch(`/api/segments/local/${encodeURIComponent(segmentId)}/details`, { credentials: 'same-origin' })
+          .then(async response => {
+            const body = await response.json();
+            if (!response.ok) throw new Error(body.error || 'Could not load segment details.');
+            return body.details;
+          });
+        segmentDetails.set(segmentId, request);
+        request.catch(() => segmentDetails.delete(segmentId));
+      }
+      return segmentDetails.get(segmentId);
+    }
+
+    function segmentPopup(segment, details, errorMessage) {
+      const elevation = details?.total_elevation_gain ?? segment.total_elevation_gain;
+      const grade = details?.average_grade ?? segment.average_grade;
+      const category = details?.climb_category;
+      const rank = formatRank(details?.rank);
+      const completions = details
+        ? formatCount(details.athlete_effort_count)
+        : 'Loading…';
+      const categoryLabel = formatCategory(category);
+      return `<strong>${escapeHtml(segment.name)}</strong>
+        <div>${escapeHtml(formatDistance(segment.distance))}</div>
+        <div>Elevation gain: ${escapeHtml(formatMeters(elevation))}</div>
+        <div>Average gradient: ${escapeHtml(formatPercent(grade))}</div>
+        ${categoryLabel ? `<div>Climb category: ${escapeHtml(categoryLabel)}</div>` : ''}
+        ${rank ? `<div>Rank: ${escapeHtml(rank)}</div>` : ''}
+        <div>Completed by you: ${escapeHtml(completions)}</div>
+        ${errorMessage ? `<div class="muted">${escapeHtml(errorMessage)}</div>` : ''}
+        <div class="segment-popup-actions">
+          <a href="https://www.strava.com/segments/${encodeURIComponent(segment.segment_id)}" target="_blank" rel="noreferrer">View on Strava</a>
+          <button class="segment-delete" type="button" data-delete-segment="${escapeHtml(segment.segment_id)}" aria-label="Delete local segment" title="Delete local segment">
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18M8 6V4h8v2m3 0-.8 14H5.8L5 6m4 4v7m6-7v7" />
+            </svg>
+            <span>Delete</span>
+          </button>
+        </div>
+        <div class="segment-delete-status muted" role="status" aria-live="polite"></div>`;
+    }
+
+    function markerStyle(details) {
+      const rank = Number(details?.rank);
+      const color = rank === 1
+        ? '#f5c542'
+        : Number.isInteger(rank) && rank > 1 && rank <= 10
+          ? '#aeb4bd'
+          : '#fc4c02';
+      return { radius: 8, color, fillColor: color, fillOpacity: 0.95, weight: 2 };
+    }
+
+    function updatePopupRankStyle(popup, details) {
+      const element = popup.getElement();
+      if (!element) return;
+      const rank = Number(details?.rank);
+      element.classList.toggle('segment-popup-kom', rank === 1);
+      element.classList.toggle('segment-popup-top-ten', Number.isInteger(rank) && rank > 1 && rank <= 10);
+    }
+
+    function formatDistance(meters) {
+      return Number.isFinite(Number(meters))
+        ? `<span data-distance-meters="${Number(meters)}"></span>`
+        : '';
+    }
+
+    function formatMeters(value) {
+      return value != null && value !== '' && Number.isFinite(Number(value)) ? `${Number(value).toFixed(0)} m` : 'Unavailable';
+    }
+
+    function formatPercent(value) {
+      return value != null && value !== '' && Number.isFinite(Number(value)) ? `${Number(value).toFixed(1)}%` : 'Unavailable';
+    }
+
+    function formatRank(value) {
+      const rank = Number(value);
+      return Number.isInteger(rank) && rank >= 1 && rank <= 10 ? `#${rank}` : '';
+    }
+
+    function formatCount(value) {
+      return value != null && value !== '' && Number.isFinite(Number(value)) ? Number(value).toLocaleString() : 'Unavailable';
+    }
+
+    function formatCategory(value) {
+      const categories = ['Uncategorized', 'Cat 4', 'Cat 3', 'Cat 2', 'Cat 1', 'Hors catégorie'];
+      return value != null && value !== '' && Number.isInteger(Number(value)) && Number(value) >= 0 && Number(value) < categories.length
+        ? categories[Number(value)] === 'Uncategorized' ? '' : categories[Number(value)]
+        : '';
+    }
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    loadMap().catch(error => {
+      document.getElementById('mapStatus').textContent = error.message;
+    });
+  </script>
+</body>
+</html>
