@@ -75,10 +75,14 @@ provided (default `3000`).
 4. In your Strava API application's settings, set **Authorization Callback
    Domain** to the hostname from `APP_BASE_URL`, without `https://` or a path.
    For example, use `your-app.up.railway.app`.
-5. Add a Railway **Volume** mounted at `/app/data`. The SQLite database is
-   stored at `data/app.db`; the volume keeps athlete tokens, mappings, settings,
-   and processing history across deploys. Without a persistent volume, that
-   data can be lost when Railway replaces the container.
+5. Add a Railway **Volume** to the service and note its mount path. Railway
+   provides that path in `RAILWAY_VOLUME_MOUNT_PATH`; the app stores
+   `app.db` directly in the volume. If you choose `/app/data`, the database
+   will be `/app/data/app.db`. If the Railway variable is unavailable, set
+   `APP_DATA_DIR` to the volume's mount path. The volume keeps athlete tokens,
+   mappings, settings, and processing history across deploys. The app warns
+   at startup if it detects Railway without a configured volume path; data
+   written to the container filesystem can be lost when Railway replaces it.
 6. Deploy, open the public app URL, and connect your Strava account.
 
 Railway provides `PORT`; the app binds to `0.0.0.0` and uses that port

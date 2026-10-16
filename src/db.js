@@ -2,10 +2,18 @@ const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+const DATA_DIR = process.env.APP_DATA_DIR
+  || process.env.RAILWAY_VOLUME_MOUNT_PATH
+  || path.join(__dirname, '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const db = new Database(path.join(DATA_DIR, 'app.db'));
+const dbPath = path.join(DATA_DIR, 'app.db');
+const isRailway = process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_PROJECT_ID;
+if (isRailway && !process.env.RAILWAY_VOLUME_MOUNT_PATH && !process.env.APP_DATA_DIR) {
+  console.warn('[warn] No Railway volume path detected. SQLite data in the container may be lost on redeploy.');
+}
+
+const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 
 db.exec(`
