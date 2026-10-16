@@ -442,28 +442,7 @@ app.get('/api/segments/starred', requireAuth, async (req, res) => {
 function saveSegment(athleteId, segment) {
   const start = Array.isArray(segment.start_latlng) ? segment.start_latlng : [];
   const end = Array.isArray(segment.end_latlng) ? segment.end_latlng : [];
-  db.prepare(`
-    INSERT INTO segments (
-      athlete_id, segment_id, name, activity_type, distance, average_grade, total_elevation_gain,
-      start_lat, start_lng, end_lat, end_lng, city, state, country, map_polyline, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(athlete_id, segment_id) DO UPDATE SET
-      name=excluded.name,
-      activity_type=excluded.activity_type,
-      distance=excluded.distance,
-      average_grade=excluded.average_grade,
-      total_elevation_gain=excluded.total_elevation_gain,
-      start_lat=excluded.start_lat,
-      start_lng=excluded.start_lng,
-      end_lat=excluded.end_lat,
-      end_lng=excluded.end_lng,
-      city=excluded.city,
-      state=excluded.state,
-      country=excluded.country,
-      map_polyline=excluded.map_polyline,
-      updated_at=excluded.updated_at
-  `).run(
-    athleteId,
+  const values = [
     String(segment.id),
     segment.name || String(segment.id),
     segment.activity_type || '',
@@ -478,16 +457,61 @@ function saveSegment(athleteId, segment) {
     segment.state || '',
     segment.country || '',
     segment.map && segment.map.polyline ? segment.map.polyline : '',
-    Math.floor(Date.now() / 1000)
-  );
+    Math.floor(Date.now() / 1000),
+  ];
+  const save = db.transaction(() => {
+    db.prepare(`
+      INSERT INTO segment_cache (
+        segment_id, name, activity_type, distance, average_grade, total_elevation_gain,
+        start_lat, start_lng, end_lat, end_lng, city, state, country, map_polyline, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(segment_id) DO UPDATE SET
+        name=excluded.name,
+        activity_type=excluded.activity_type,
+        distance=excluded.distance,
+        average_grade=excluded.average_grade,
+        total_elevation_gain=excluded.total_elevation_gain,
+        start_lat=excluded.start_lat,
+        start_lng=excluded.start_lng,
+        end_lat=excluded.end_lat,
+        end_lng=excluded.end_lng,
+        city=excluded.city,
+        state=excluded.state,
+        country=excluded.country,
+        map_polyline=excluded.map_polyline,
+        updated_at=excluded.updated_at
+    `).run(...values);
+    db.prepare(`
+      INSERT INTO segments (
+        athlete_id, segment_id, name, activity_type, distance, average_grade, total_elevation_gain,
+        start_lat, start_lng, end_lat, end_lng, city, state, country, map_polyline, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(athlete_id, segment_id) DO UPDATE SET
+        name=excluded.name,
+        activity_type=excluded.activity_type,
+        distance=excluded.distance,
+        average_grade=excluded.average_grade,
+        total_elevation_gain=excluded.total_elevation_gain,
+        start_lat=excluded.start_lat,
+        start_lng=excluded.start_lng,
+        end_lat=excluded.end_lat,
+        end_lng=excluded.end_lng,
+        city=excluded.city,
+        state=excluded.state,
+        country=excluded.country,
+        map_polyline=excluded.map_polyline,
+        updated_at=excluded.updated_at
+    `).run(athleteId, ...values);
+  });
+  save();
 }
 
-function cachedSegment(athleteId, segmentId) {
+function cachedSegment(segmentId) {
   const segment = db.prepare(`
     SELECT segment_id, name, activity_type, distance, average_grade, total_elevation_gain,
       start_lat, start_lng, end_lat, end_lng, city, state, country, map_polyline
-    FROM segments WHERE athlete_id = ? AND segment_id = ?
-  `).get(athleteId, segmentId);
+    FROM segment_cache WHERE segment_id = ?
+  `).get(segmentId);
   if (!segment) return null;
   return {
     id: segment.segment_id,
@@ -506,8 +530,11 @@ function cachedSegment(athleteId, segmentId) {
 }
 
 async function getCachedOrRemoteSegment(athleteId, segmentId) {
-  const cached = cachedSegment(athleteId, segmentId);
-  if (cached) return cached;
+  const cached = cachedSegment(segmentId);
+  if (cached) {
+    saveSegment(athleteId, cached);
+    return cached;
+  }
   const segment = await strava.getSegment(athleteId, segmentId);
   saveSegment(athleteId, segment);
   return segment;

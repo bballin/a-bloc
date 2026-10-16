@@ -201,7 +201,10 @@ the Gear Selector or Segment Counts page.
 
 The SQLite database is stored in `data/app.db`; uploaded files are temporary
 and stored in `uploads/`. Back up the database or use persistent storage when
-hosting the app. On Railway, mount a volume at `/app/data`.
+hosting the app. On Railway, mount a volume at `/app/data`. General segment
+metadata is cached globally, so when one user fetches a segment, other users
+can reuse that cached information; starred segments and segment-count settings
+remain per-user.
 
 Garmin Connect and Strava web downloads use unofficial interfaces and can
 break when those services change. Garmin MFA is not supported by the

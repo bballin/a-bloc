@@ -80,6 +80,24 @@ db.exec(`
     PRIMARY KEY (athlete_id, segment_id)
   );
 
+  CREATE TABLE IF NOT EXISTS segment_cache (
+    segment_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    activity_type TEXT,
+    distance REAL,
+    average_grade REAL,
+    total_elevation_gain REAL,
+    start_lat REAL,
+    start_lng REAL,
+    end_lat REAL,
+    end_lng REAL,
+    city TEXT,
+    state TEXT,
+    country TEXT,
+    map_polyline TEXT,
+    updated_at INTEGER NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS segment_count_tracking (
     athlete_id INTEGER NOT NULL,
     segment_id TEXT NOT NULL,
@@ -98,5 +116,46 @@ db.exec(`
     UNIQUE(athlete_id, activity_id)
   );
 `);
+
+const segmentCacheCount = db.prepare('SELECT COUNT(*) AS count FROM segment_cache').get().count;
+if (segmentCacheCount === 0) {
+  const insertCachedSegment = db.prepare(`
+    INSERT INTO segment_cache (
+      segment_id, name, activity_type, distance, average_grade, total_elevation_gain,
+      start_lat, start_lng, end_lat, end_lng, city, state, country, map_polyline, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(segment_id) DO UPDATE SET
+      name=excluded.name,
+      activity_type=excluded.activity_type,
+      distance=excluded.distance,
+      average_grade=excluded.average_grade,
+      total_elevation_gain=excluded.total_elevation_gain,
+      start_lat=excluded.start_lat,
+      start_lng=excluded.start_lng,
+      end_lat=excluded.end_lat,
+      end_lng=excluded.end_lng,
+      city=excluded.city,
+      state=excluded.state,
+      country=excluded.country,
+      map_polyline=excluded.map_polyline,
+      updated_at=excluded.updated_at
+  `);
+  const migrateCachedSegments = db.transaction(() => {
+    const legacySegments = db.prepare(`
+      SELECT segment_id, name, activity_type, distance, average_grade, total_elevation_gain,
+        start_lat, start_lng, end_lat, end_lng, city, state, country, map_polyline, updated_at
+      FROM segments ORDER BY updated_at, athlete_id
+    `).all();
+    for (const segment of legacySegments) {
+      insertCachedSegment.run(
+        segment.segment_id, segment.name, segment.activity_type, segment.distance,
+        segment.average_grade, segment.total_elevation_gain, segment.start_lat,
+        segment.start_lng, segment.end_lat, segment.end_lng, segment.city,
+        segment.state, segment.country, segment.map_polyline, segment.updated_at
+      );
+    }
+  });
+  migrateCachedSegments();
+}
 
 module.exports = db;
