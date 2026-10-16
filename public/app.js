@@ -41,11 +41,13 @@ async function init() {
   $('#syncForm').onsubmit = onSync;
   $('#pollingForm').onsubmit = onSavePolling;
   $('#gearWebhookForm').onsubmit = onSaveGearWebhook;
-  $('#createGearWebhookSubscription').onclick = onCreateGearWebhookSubscription;
-  $('#refreshGearWebhookSubscription').onclick = loadGearWebhookSubscription;
   document.querySelectorAll('[data-tab]').forEach(tab => {
     tab.onclick = () => switchTab(tab.dataset.tab);
   });
+  const requestedPanel = document.getElementById(window.location.hash.slice(1));
+  if (requestedPanel && requestedPanel.classList.contains('tab-panel')) {
+    switchTab(requestedPanel.id);
+  }
   $('#refreshSegments').onclick = loadStarredSegments;
   $('#exportSegments').onclick = () => { window.location.href = '/api/segments/export'; };
   $('#unstarAllSegments').onclick = onUnstarAllSegments;
@@ -405,24 +407,8 @@ async function loadGearWebhook() {
     $('#gearWebhookCallback').textContent = state.callbackUrl;
     $('#gearWebhookStatus').textContent = state.enabled ? 'enabled' : 'disabled';
     $('#gearWebhookStatus').className = state.enabled ? 'status-ok' : 'muted';
-    await loadGearWebhookSubscription();
   } catch (e) {
     $('#gearWebhookStatus').textContent = e.message;
-  }
-}
-
-async function loadGearWebhookSubscription() {
-  const status = $('#gearWebhookSubscriptionStatus');
-  status.textContent = 'Checking…';
-  try {
-    const data = await api('/api/segment-counts/subscription');
-    const subscription = (data.subscriptions || [])[0];
-    $('#createGearWebhookSubscription').disabled = !!subscription;
-    status.textContent = subscription ? `Strava subscription ${subscription.id} is active.` : 'No Strava subscription found.';
-    status.className = subscription ? 'status-ok' : 'muted';
-  } catch (e) {
-    status.textContent = e.message;
-    status.className = 'status-error';
   }
 }
 
@@ -440,18 +426,6 @@ async function onSaveGearWebhook(ev) {
     status.textContent = enabled ? 'enabled; polling disabled' : 'disabled';
     status.className = enabled ? 'status-ok' : 'muted';
     await loadPolling();
-  } catch (e) {
-    status.textContent = e.message;
-    status.className = 'status-error';
-  }
-}
-
-async function onCreateGearWebhookSubscription() {
-  const status = $('#gearWebhookSubscriptionStatus');
-  status.textContent = 'Creating…';
-  try {
-    await api('/api/segment-counts/subscription', { method: 'POST' });
-    await loadGearWebhookSubscription();
   } catch (e) {
     status.textContent = e.message;
     status.className = 'status-error';

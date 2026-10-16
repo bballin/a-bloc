@@ -26,6 +26,12 @@
         <button class="tab active" type="button" data-tab="gearPanel" aria-selected="true">Gear Selector</button>
         <button class="tab" type="button" data-tab="segmentationPanel" aria-selected="false">Segmentation</button>
         <button class="tab" type="button" data-tab="segmentCatalogPanel" aria-selected="false">Segment Database</button>
+        <button class="tab tab-icon" type="button" data-tab="configurationPanel" aria-label="Configuration" title="Configuration" aria-selected="false">
+          <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+            <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"></path>
+            <path d="m19.4 13.5 1.1.9-1.1 1.9-1.4-.5a7.9 7.9 0 0 1-1.4.8l-.2 1.5h-2.2l-.4-1.4a7.9 7.9 0 0 1-1.6 0l-.8 1.2-1.9-1.1.5-1.4a7.9 7.9 0 0 1-.8-1.4l-1.5-.2v-2.2l1.4-.4a7.9 7.9 0 0 1 0-1.6l-1.2-.8 1.1-1.9 1.4.5a7.9 7.9 0 0 1 1.4-.8l.2-1.5h2.2l.4 1.4a7.9 7.9 0 0 1 1.6 0l.8-1.2 1.9 1.1-.5 1.4a7.9 7.9 0 0 1 .8 1.4l1.5.2v2.2l-1.4.4a7.9 7.9 0 0 1 0 1.6Z"></path>
+          </svg>
+        </button>
         <button class="tab" type="button" data-tab="segmentCountsPanel" aria-selected="false">Segment Counts</button>
         <div class="units-control" aria-label="Distance units">
           <span>Units</span>
@@ -40,59 +46,7 @@
       <section id="gearPanel" class="tab-panel">
         <div class="grid">
         <details class="card span-2">
-          <summary><h2>Auto-fetch sources</h2></summary>
-          <p>To set gear without dropping FIT files manually, the app needs a way to download the original FIT for each Strava activity. Configure one or both sources below. <strong>Both rely on unofficial endpoints</strong> &mdash; credentials live encrypted in <code>data/app.db</code>.</p>
-          <div class="settings-grid">
-            <div>
-              <h3>Garmin Connect</h3>
-              <p class="muted">Recommended if your rides come from a Garmin device. Email/password are stored encrypted; OAuth tokens are cached and refreshed automatically.</p>
-              <form id="garminForm" class="stack">
-                <input type="email" name="username" placeholder="Garmin email" autocomplete="off" />
-                <input type="password" name="password" placeholder="Garmin password" autocomplete="new-password" />
-                <div class="row">
-                  <button class="btn primary" type="submit">Save</button>
-                  <button class="btn" type="button" id="garminTest">Test login</button>
-                  <span id="garminStatus" class="muted"></span>
-                </div>
-              </form>
-            </div>
-            <div>
-              <h3>Strava (web session)</h3>
-              <p class="muted">Used as a fallback to call Strava's <code>/export_original</code>. Easiest: paste your <code>_strava4_session</code> cookie from a browser logged into strava.com.</p>
-              <form id="stravaWebForm" class="stack">
-                <input type="text" name="session_cookie" placeholder="_strava4_session=..." autocomplete="off" />
-                <details>
-                  <summary class="muted">Or use email + password (often blocked by Cloudflare)</summary>
-                  <input type="email" name="username" placeholder="Strava email" autocomplete="off" />
-                  <input type="password" name="password" placeholder="Strava password" autocomplete="new-password" />
-                </details>
-                <div class="row">
-                  <button class="btn primary" type="submit">Save</button>
-                  <span id="stravaWebStatus" class="muted"></span>
-                </div>
-              </form>
-            </div>
-          </div>
-        </details>
-
-        <details class="card span-2">
           <summary><h2>Automatic gear updates</h2></summary>
-          <h3>Webhook</h3>
-          <p>Process each new Strava activity as soon as Strava sends it. Webhook processing always evaluates the FIT sensors and replaces any existing gear assignment.</p>
-          <form id="gearWebhookForm" class="stack" autocomplete="off">
-            <div class="row">
-              <label><input type="checkbox" id="gearWebhookEnabled" /> Use webhook instead of polling</label>
-              <button class="btn primary" type="submit">Save</button>
-              <span id="gearWebhookStatus" class="muted"></span>
-            </div>
-            <div class="row">
-              <button class="btn" type="button" id="createGearWebhookSubscription">Create Strava subscription</button>
-              <button class="btn" type="button" id="refreshGearWebhookSubscription">Refresh status</button>
-              <span id="gearWebhookSubscriptionStatus" class="muted"></span>
-            </div>
-            <div class="muted">Callback: <code id="gearWebhookCallback"></code></div>
-          </form>
-
           <h3>Polling</h3>
           <p>Poll recent Strava activities on an interval. Failed attempts back off automatically (no_fit: 30 min, no_mapping: 6 h, error: 15 min).</p>
           <form id="pollingForm" class="row" autocomplete="off">
@@ -250,18 +204,6 @@
         </div>
 
         <div class="card">
-          <h2>Webhook subscription</h2>
-          <p>Strava must be able to reach this HTTPS callback URL:</p>
-          <p><code id="callbackUrl"></code></p>
-          <div class="row">
-            <button class="btn primary" id="createSubscription" type="button">Create subscription</button>
-            <button class="btn danger hidden" id="deleteSubscription" type="button">Delete subscription</button>
-            <button class="btn" id="refreshSubscription" type="button">Refresh status</button>
-            <span id="subscriptionStatus" class="muted" role="status"></span>
-          </div>
-        </div>
-
-        <div class="card">
           <div class="section-heading">
             <div>
               <h2>Recent webhook activity</h2>
@@ -274,6 +216,71 @@
             <thead><tr><th>When</th><th>Activity</th><th>Status</th><th>Result</th></tr></thead>
             <tbody></tbody>
           </table>
+        </div>
+      </section>
+
+      <section id="configurationPanel" class="tab-panel hidden">
+        <div class="card">
+          <h2>Strava webhook</h2>
+          <p>Process new activities as soon as Strava sends them. Webhook processing evaluates FIT sensors and replaces any existing gear assignment.</p>
+          <form id="gearWebhookForm" class="stack" autocomplete="off">
+            <div class="row">
+              <label><input type="checkbox" id="gearWebhookEnabled" /> Use webhook instead of polling</label>
+              <button class="btn primary" type="submit">Save</button>
+              <span id="gearWebhookStatus" class="muted" role="status"></span>
+            </div>
+            <div class="muted">Callback: <code id="gearWebhookCallback"></code></div>
+          </form>
+          <div class="row">
+            <button class="btn primary" id="createSubscription" type="button">Create subscription</button>
+            <button class="btn danger hidden" id="deleteSubscription" type="button">Delete subscription</button>
+            <button class="btn" id="refreshSubscription" type="button">Refresh status</button>
+            <span id="subscriptionStatus" class="muted" role="status"></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Original Activity File</h2>
+          <p>Connect a source to retrieve original FIT files for your Strava activities. Credentials are stored encrypted in <code>data/app.db</code>.</p>
+          <div class="settings-grid original-file-options">
+            <div>
+              <h3>Garmin Connect</h3>
+              <p class="muted">Recommended if your rides come from a Garmin device. Email/password are stored encrypted; OAuth tokens are cached and refreshed automatically.</p>
+              <form id="garminForm" class="stack">
+                <input type="email" name="username" placeholder="Garmin email" autocomplete="off" />
+                <input type="password" name="password" placeholder="Garmin password" autocomplete="new-password" />
+                <div class="row">
+                  <button class="btn primary" type="submit">Save</button>
+                  <button class="btn" type="button" id="garminTest">Test login</button>
+                  <span id="garminStatus" class="muted" role="status"></span>
+                </div>
+              </form>
+            </div>
+            <div>
+              <h3>Strava (web session)</h3>
+              <p class="muted">Fallback using Strava's <code>/export_original</code>. Paste your <code>_strava4_session</code> cookie from a browser logged into strava.com.</p>
+              <form id="stravaWebForm" class="stack">
+                <input type="text" name="session_cookie" placeholder="_strava4_session=..." autocomplete="off" />
+                <details>
+                  <summary class="muted">Or use email + password (often blocked by Cloudflare)</summary>
+                  <input type="email" name="username" placeholder="Strava email" autocomplete="off" />
+                  <input type="password" name="password" placeholder="Strava password" autocomplete="new-password" />
+                </details>
+                <div class="row">
+                  <button class="btn primary" type="submit">Save</button>
+                  <span id="stravaWebStatus" class="muted" role="status"></span>
+                </div>
+              </form>
+            </div>
+            <div>
+              <h3>Wahoo</h3>
+              <p class="muted">Wahoo original activity file import is coming soon.</p>
+            </div>
+            <div>
+              <h3>Hammerhead</h3>
+              <p class="muted">Hammerhead original activity file import is coming soon.</p>
+            </div>
+          </div>
         </div>
       </section>
     </section>

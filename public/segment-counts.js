@@ -104,7 +104,6 @@ async function loadConfiguration() {
   const data = await api('/api/segment-counts');
   renderInputs(data.segments || []);
   renderEvents(data.events || []);
-  $('#callbackUrl').textContent = data.callbackUrl;
 }
 
 async function saveSegments(event) {
@@ -200,11 +199,16 @@ async function initialize() {
   const countsSection = $('#countsSection') || $('#segmentCountsPanel');
   countsSection.classList.remove('hidden');
   $('#segmentsForm').addEventListener('submit', saveSegments);
-  $('#createSubscription').addEventListener('click', createSubscription);
-  $('#deleteSubscription').addEventListener('click', deleteSubscription);
-  $('#refreshSubscription').addEventListener('click', loadSubscription);
+  const subscriptionStatus = $('#subscriptionStatus');
+  if (subscriptionStatus) {
+    $('#createSubscription').addEventListener('click', createSubscription);
+    $('#deleteSubscription').addEventListener('click', deleteSubscription);
+    $('#refreshSubscription').addEventListener('click', loadSubscription);
+  }
   $('#refreshEvents').addEventListener('click', refreshEvents);
-  await Promise.all([loadConfiguration(), loadSubscription()]);
+  const tasks = [loadConfiguration()];
+  if (subscriptionStatus) tasks.push(loadSubscription());
+  await Promise.all(tasks);
 }
 
 initialize().catch(error => {
