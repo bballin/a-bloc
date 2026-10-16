@@ -17,6 +17,8 @@ async function init() {
   const me = await api('/api/me');
   if (!me.authenticated) {
     $('#loginSection').classList.remove('hidden');
+    $('#mainSection').classList.remove('hidden');
+    switchTab('gearPanel');
     return;
   }
   $('#mainSection').classList.remove('hidden');
