@@ -3,4 +3,8 @@ set -eu
 
 cd "$(dirname "$0")"
 
-exec node src/server.js
+if [ ! -d node_modules ]; then
+  npm ci --omit=dev
+fi
+
+exec npm start

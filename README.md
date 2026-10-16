@@ -24,7 +24,9 @@ You can process activities in four ways:
 ## Run locally
 
 1. Create an API application at <https://www.strava.com/settings/api>. Set its
-   **Authorization Callback Domain** to `localhost`.
+   **Authorization Callback Domain** to `localhost`. A separate Strava API app
+   for local development is recommended so its callback domain can differ from
+   the production app.
 2. Copy `.env.example` to `.env`. Set `STRAVA_CLIENT_ID`,
    `STRAVA_CLIENT_SECRET`, and a long random `SESSION_SECRET` (at least 16
    characters). Set a separate random `STRAVA_WEBHOOK_VERIFY_TOKEN`.
@@ -56,7 +58,11 @@ provided (default `3000`).
    setup that skips dependency installation, set its **Build Command** to
    `npm ci --omit=dev`. You can also set the **Start Command** to
    `node src/server.js` instead of using the script.
-3. Add these variables under the Railway service's **Variables**:
+3. Add the production values from `.env.railway.example` under the Railway
+   service's **Variables**. Railway does not automatically load that example
+   file; it documents the values to configure in the dashboard. Use the
+   production Strava API app's credentials and generate production-only
+   secrets:
    - `STRAVA_CLIENT_ID`
    - `STRAVA_CLIENT_SECRET`
    - `SESSION_SECRET` — a long random value of at least 16 characters. Keep it
@@ -65,6 +71,7 @@ provided (default `3000`).
      `https://your-app.up.railway.app` (no trailing slash).
    - `STRAVA_WEBHOOK_VERIFY_TOKEN` — a separate random value for Strava webhook
      verification.
+   Do not set `PORT` manually; Railway provides it at runtime.
 4. In your Strava API application's settings, set **Authorization Callback
    Domain** to the hostname from `APP_BASE_URL`, without `https://` or a path.
    For example, use `your-app.up.railway.app`.
@@ -77,7 +84,11 @@ provided (default `3000`).
 Railway provides `PORT`; the app binds to `0.0.0.0` and uses that port
 automatically. To use Strava webhooks, create the subscription from the app
 after deployment. Strava requires a public HTTPS callback URL, and permits one
-webhook subscription per API application.
+webhook subscription per API application. Keep the local and Railway values
+separate: in particular, use the Railway HTTPS URL and production Strava
+credentials in Railway, and `http://localhost:3000` with local credentials in
+your local `.env`. If you reuse one Strava API app, its Authorization Callback
+Domain must be changed when switching environments.
 
 ## Strava permissions
 
