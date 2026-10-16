@@ -37,7 +37,6 @@ async function init() {
   $('#refreshActivities').onclick = loadActivities;
   $('#garminForm').onsubmit = onSaveGarmin;
   $('#garminTest').onclick = onTestGarmin;
-  $('#stravaWebForm').onsubmit = onSaveStravaWeb;
   $('#syncForm').onsubmit = onSync;
   $('#pollingForm').onsubmit = onSavePolling;
   $('#gearWebhookForm').onsubmit = onSaveGearWebhook;
@@ -442,17 +441,10 @@ function timeAgo(epochSeconds) {
 async function loadSettings() {
   const s = await api('/api/settings');
   $('#garminStatus').textContent = describeGarmin(s.garmin);
-  $('#stravaWebStatus').textContent = describeStravaWeb(s.strava_web);
 }
 function describeGarmin(g) {
   if (!g.hasUsername || !g.hasPassword) return 'Not configured.';
   return g.hasToken ? 'Configured (cached token).' : 'Configured.';
-}
-function describeStravaWeb(s) {
-  const parts = [];
-  if (s.hasCookie) parts.push('cookie set');
-  if (s.hasUsername && s.hasPassword) parts.push('credentials set');
-  return parts.length ? `Configured (${parts.join(', ')}).` : 'Not configured.';
 }
 
 async function onSaveGarmin(ev) {
@@ -478,22 +470,6 @@ async function onTestGarmin() {
   } catch (e) {
     $('#garminStatus').textContent = `Error: ${e.message}`;
   }
-}
-
-async function onSaveStravaWeb(ev) {
-  ev.preventDefault();
-  const fd = new FormData(ev.target);
-  await api('/api/settings/strava-web', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      session_cookie: fd.get('session_cookie') || '',
-      username: fd.get('username') || '',
-      password: fd.get('password') || '',
-    }),
-  });
-  ev.target.reset();
-  loadSettings();
 }
 
 async function loadActivities() {

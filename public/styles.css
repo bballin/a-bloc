@@ -112,6 +112,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   gap: 24px;
 }
 .original-file-options > div { min-width: 0; }
+.original-file-options { display: grid; grid-template-columns: 1fr; gap: 24px; }
 @media (max-width: 800px) {
   .settings-grid { grid-template-columns: 1fr; }
 }
