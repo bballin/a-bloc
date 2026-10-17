@@ -299,6 +299,9 @@ app.post('/api/settings/garmin', requireAuth, (req, res) => {
   }
   settings.remove(a, 'garmin_oauth1');
   settings.remove(a, 'garmin_oauth2');
+  if (req.is('application/x-www-form-urlencoded')) {
+    return res.redirect(303, '/#configurationPanel');
+  }
   res.json({ ok: true, ...settings.summary(a).garmin });
 });
 

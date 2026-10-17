@@ -19,6 +19,8 @@ async function init() {
   document.querySelectorAll('[data-tab]').forEach(tab => {
     tab.onclick = () => switchTab(tab.dataset.tab);
   });
+  $('#garminForm').onsubmit = onSaveGarmin;
+  $('#garminTest').onclick = onTestGarmin;
   const requestedPanel = document.getElementById(window.location.hash.slice(1));
 
   const me = await api('/api/me');
@@ -43,8 +45,6 @@ async function init() {
   $('#mappingForm').onsubmit = onSaveMapping;
   $('#refreshActivities').onclick = () => loadActivities(true);
   $('#loadMoreActivities').onclick = () => loadActivities();
-  $('#garminForm').onsubmit = onSaveGarmin;
-  $('#garminTest').onclick = onTestGarmin;
   $('#syncForm').onsubmit = onSync;
   $('#gearWebhookForm').onsubmit = onSaveGearWebhook;
   if (requestedPanel && requestedPanel.classList.contains('tab-panel')) {
@@ -402,16 +402,24 @@ function describeGarmin(g) {
 async function onSaveGarmin(ev) {
   ev.preventDefault();
   const fd = new FormData(ev.target);
-  await api('/api/settings/garmin', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username: fd.get('username') || '',
-      password: fd.get('password') || '',
-    }),
-  });
-  ev.target.reset();
-  loadSettings();
+  const status = $('#garminStatus');
+  status.textContent = 'Saving…';
+  status.className = 'muted';
+  try {
+    const result = await api('/api/settings/garmin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: fd.get('username') || '',
+        password: fd.get('password') || '',
+      }),
+    });
+    ev.target.reset();
+    status.textContent = `Saved. ${describeGarmin(result)}`;
+  } catch (error) {
+    status.textContent = `Error: ${error.message}`;
+    status.className = 'status-error';
+  }
 }
 
 async function onTestGarmin() {
