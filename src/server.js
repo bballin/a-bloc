@@ -307,8 +307,7 @@ app.post('/api/settings/garmin/test', requireAuth, async (req, res) => {
     const garmin = require('./garmin');
     const client = await garmin.getClient(req.session.athleteId);
     if (!client) return res.status(400).json({ ok: false, error: 'Garmin is not configured.' });
-    const profile = await client.getUserProfile();
-    res.json({ ok: true, displayName: profile && (profile.displayName || profile.userName || profile.fullName) });
+    res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ ok: false, error: e.message });
   }

@@ -26,6 +26,7 @@ async function getClient(athleteId) {
       await client.getUserProfile();
       restored = true;
     } catch (e) {
+      if (e && e.response && e.response.status === 429) throw e;
       restored = false;
     }
   }
