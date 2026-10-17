@@ -354,17 +354,15 @@ app.post('/api/sync', requireAuth, async (req, res) => {
 // Process a single Strava activity by ID
 app.post('/api/activities/:id/process', requireAuth, async (req, res) => {
   const id = req.params.id;
+  if (!/^\d+$/.test(id)) return res.status(400).json({ error: 'Invalid activity ID' });
   const dryRun = !!(req.body && req.body.dryRun);
   const force = !!(req.body && req.body.force);
   const sources = Array.isArray(req.body && req.body.sources) && req.body.sources.length
     ? req.body.sources : ['garmin', 'strava_web'];
   try {
-    // Fetch activity meta from Strava
-    const result = await strava.listRecentActivities(req.session.athleteId, 30, 1)
-      .then(list => list.find(a => String(a.id) === String(id)));
-    if (!result) return res.status(404).json({ error: 'Activity not found in recent 30. Sync more or pass full data.' });
-    const r = await sync.processActivity(req.session.athleteId, result, { dryRun, force, sources });
-    res.json(r);
+    const activity = await strava.getActivity(req.session.athleteId, id);
+    const result = await sync.processActivity(req.session.athleteId, activity, { dryRun, force, sources });
+    res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -372,8 +370,12 @@ app.post('/api/activities/:id/process', requireAuth, async (req, res) => {
 
 // List recent Strava activities (for the UI list)
 app.get('/api/activities', requireAuth, async (req, res) => {
+  const pageValue = req.query.page === undefined ? '1' : String(req.query.page);
+  if (!/^[1-9]\d*$/.test(pageValue) || !Number.isSafeInteger(Number(pageValue))) {
+    return res.status(400).json({ error: 'page must be a positive integer' });
+  }
   try {
-    const list = await strava.listRecentActivities(req.session.athleteId, 30, 1);
+    const list = await strava.listRecentActivities(req.session.athleteId, 10, Number(pageValue));
     res.json({
       activities: list.map(a => ({
         id: a.id,

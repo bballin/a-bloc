@@ -4,6 +4,8 @@ let gearCache = [];
 let importedSegments = [];
 let localSegments = [];
 let localSegmentsSort = { key: 'name', direction: 1 };
+let activityPage = 0;
+let activitiesLoading = false;
 
 async function api(path, opts = {}) {
   const res = await fetch(path, { credentials: 'same-origin', ...opts });
@@ -14,11 +16,18 @@ async function api(path, opts = {}) {
 }
 
 async function init() {
+  document.querySelectorAll('[data-tab]').forEach(tab => {
+    tab.onclick = () => switchTab(tab.dataset.tab);
+  });
+  const requestedPanel = document.getElementById(window.location.hash.slice(1));
+
   const me = await api('/api/me');
   if (!me.authenticated) {
     $('#loginSection').classList.remove('hidden');
     $('#mainSection').classList.remove('hidden');
-    switchTab('gearPanel');
+    switchTab(requestedPanel && requestedPanel.classList.contains('tab-panel')
+      ? requestedPanel.id
+      : 'gearPanel');
     return;
   }
   $('#mainSection').classList.remove('hidden');
@@ -28,24 +37,19 @@ async function init() {
     location.reload();
   };
 
-  await Promise.all([loadGear(), loadMappings(), loadLog(), loadSettings(), loadPolling(), loadGearWebhook()]);
+  await Promise.all([loadGear(), loadMappings(), loadSettings(), loadPolling(), loadGearWebhook()]);
   // Auto-refresh polling status every 15s while page is open
   setInterval(() => { if (!document.hidden) loadPolling(); }, 15000);
 
   $('#inspectFile').onchange = onInspect;
-  $('#applyFile').onchange = onApply;
   $('#mappingForm').onsubmit = onSaveMapping;
-  $('#refreshLog').onclick = loadLog;
-  $('#refreshActivities').onclick = loadActivities;
+  $('#refreshActivities').onclick = () => loadActivities(true);
+  $('#loadMoreActivities').onclick = () => loadActivities();
   $('#garminForm').onsubmit = onSaveGarmin;
   $('#garminTest').onclick = onTestGarmin;
   $('#syncForm').onsubmit = onSync;
   $('#pollingForm').onsubmit = onSavePolling;
   $('#gearWebhookForm').onsubmit = onSaveGearWebhook;
-  document.querySelectorAll('[data-tab]').forEach(tab => {
-    tab.onclick = () => switchTab(tab.dataset.tab);
-  });
-  const requestedPanel = document.getElementById(window.location.hash.slice(1));
   if (requestedPanel && requestedPanel.classList.contains('tab-panel')) {
     switchTab(requestedPanel.id);
   }
@@ -80,6 +84,7 @@ async function init() {
       renderLocalSegments();
     };
   });
+  await loadActivities(true);
 }
 
 function switchTab(panelId) {
@@ -397,8 +402,6 @@ async function onSavePolling(ev) {
   });
   loadPolling();
   loadGearWebhook();
-  // Refresh the log after a short delay so the first auto-run shows up
-  setTimeout(() => { loadLog(); }, 4000);
 }
 
 async function loadGearWebhook() {
@@ -474,12 +477,28 @@ async function onTestGarmin() {
   }
 }
 
-async function loadActivities() {
+async function loadActivities(reset = false) {
   const tbody = document.querySelector('#activitiesTable tbody');
-  tbody.innerHTML = '<tr><td colspan="5" class="muted">Loading…</td></tr>';
+  const refreshButton = $('#refreshActivities');
+  const loadMoreButton = $('#loadMoreActivities');
+  if (activitiesLoading) return;
+
+  const page = reset ? 1 : activityPage + 1;
+  activitiesLoading = true;
+  refreshButton.disabled = true;
+  loadMoreButton.disabled = true;
+  if (reset) {
+    activityPage = 0;
+    loadMoreButton.classList.add('hidden');
+    tbody.innerHTML = '<tr><td colspan="5" class="muted">Loading…</td></tr>';
+  } else {
+    tbody.querySelector('[data-activity-load-error]')?.remove();
+    loadMoreButton.textContent = 'Loading…';
+  }
   try {
-    const { activities } = await api('/api/activities');
-    tbody.innerHTML = activities.map(a => `
+    const { activities } = await api(`/api/activities?page=${page}`);
+    if (reset) tbody.replaceChildren();
+    const rows = activities.map(a => `
       <tr>
         <td>${new Date(a.start_date).toLocaleString()}</td>
         <td><a href="https://www.strava.com/activities/${a.id}" target="_blank">${escapeHtml(a.name)}</a></td>
@@ -487,12 +506,35 @@ async function loadActivities() {
         <td>${a.gear_id ? escapeHtml(gearName(a.gear_id)) : '<span class="muted">none</span>'}</td>
         <td><button class="btn" data-process="${a.id}">Tag</button> <button class="btn" data-process="${a.id}" data-force="1">Re-tag</button></td>
       </tr>
-    `).join('') || '<tr><td colspan="5" class="muted">No recent activities.</td></tr>';
+    `).join('');
+    if (rows) tbody.insertAdjacentHTML('beforeend', rows);
+    else {
+      const row = tbody.insertRow();
+      const cell = row.insertCell();
+      cell.colSpan = 5;
+      cell.className = 'muted';
+      cell.textContent = reset ? 'No recent activities.' : 'No more recent activities.';
+    }
+    if (activities.length) activityPage = page;
+    loadMoreButton.classList.toggle('hidden', activities.length < 10);
     tbody.querySelectorAll('button[data-process]').forEach(b => {
       b.onclick = () => onProcessActivity(b.dataset.process, !!b.dataset.force, b);
     });
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="5" class="status-error">${escapeHtml(e.message)}</td></tr>`;
+    if (reset) tbody.innerHTML = `<tr><td colspan="5" class="status-error">${escapeHtml(e.message)}</td></tr>`;
+    else {
+      const row = tbody.insertRow();
+      row.dataset.activityLoadError = 'true';
+      const cell = row.insertCell();
+      cell.colSpan = 5;
+      cell.className = 'status-error';
+      cell.textContent = e.message;
+    }
+  } finally {
+    activitiesLoading = false;
+    refreshButton.disabled = false;
+    loadMoreButton.disabled = false;
+    loadMoreButton.textContent = 'Load More';
   }
 }
 
@@ -512,7 +554,6 @@ async function onProcessActivity(id, force, btn) {
     });
     btn.textContent = r.status === 'ok' ? '✓' : r.status;
     btn.title = r.message || '';
-    loadLog();
   } catch (e) {
     btn.textContent = 'err';
     btn.title = e.message;
@@ -537,7 +578,6 @@ async function onSync(ev) {
       }),
     });
     out.innerHTML = renderSyncResults(r.results);
-    loadLog();
   } catch (e) {
     out.innerHTML = `<p class="status-error">${escapeHtml(e.message)}</p>`;
   }
@@ -587,21 +627,6 @@ async function loadMappings() {
       loadMappings();
     };
   });
-}
-
-async function loadLog() {
-  const { entries } = await api('/api/log');
-  const tbody = document.querySelector('#logTable tbody');
-  tbody.innerHTML = entries.map(e => `
-    <tr>
-      <td>${new Date(e.created_at * 1000).toLocaleString()}</td>
-      <td>${escapeHtml(e.fit_filename || '')}</td>
-      <td>${e.activity_id ? `<a href="https://www.strava.com/activities/${e.activity_id}" target="_blank">${e.activity_id}</a>` : ''}</td>
-      <td>${escapeHtml(e.matched_gear_name || '')}</td>
-      <td class="status-${e.status}">${e.status}</td>
-      <td class="muted">${escapeHtml(e.message || '')}</td>
-    </tr>
-  `).join('') || '<tr><td colspan="6" class="muted">No activity yet.</td></tr>';
 }
 
 async function onInspect(ev) {
@@ -664,27 +689,6 @@ async function onSaveMapping(ev) {
   ev.target.reset();
   document.querySelector('input[name="priority"]').value = '0';
   loadMappings();
-}
-
-async function onApply(ev) {
-  const file = ev.target.files[0];
-  if (!file) return;
-  const fd = new FormData();
-  fd.append('fit', file);
-  $('#applyResult').innerHTML = '<p class="muted">Working…</p>';
-  try {
-    const r = await api('/api/fit/apply', { method: 'POST', body: fd });
-    const matched = r.matched
-      ? `<p>Matched gear: <strong>${escapeHtml(r.matched.gear_name)}</strong> (sensor <code>${escapeHtml(r.matched.sensor_key)}</code>)</p>`
-      : '<p class="muted">No mapping matched the sensors in this file.</p>';
-    const act = r.activity
-      ? `<p>Activity: <a target="_blank" href="https://www.strava.com/activities/${r.activity.id}">${escapeHtml(r.activity.name)}</a></p>`
-      : '';
-    $('#applyResult').innerHTML = `${matched}${act}<p>${escapeHtml(r.message || '')}</p>`;
-    loadLog();
-  } catch (e) {
-    $('#applyResult').innerHTML = `<p class="status-error">${escapeHtml(e.message)}</p>`;
-  }
 }
 
 function escapeHtml(s) {
