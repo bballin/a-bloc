@@ -46,19 +46,6 @@
 
       <section id="gearPanel" class="tab-panel">
         <div class="grid">
-        <details class="card span-2">
-          <summary><h2>Automatic gear updates</h2></summary>
-          <h3>Polling</h3>
-          <p>Poll recent Strava activities on an interval. Failed attempts back off automatically (no_fit: 30 min, no_mapping: 6 h, error: 15 min).</p>
-          <form id="pollingForm" class="row" autocomplete="off">
-            <label><input type="checkbox" name="enabled" id="pollingEnabled" /> Enabled</label>
-            <label>Every <input type="number" name="intervalSeconds" id="pollingInterval" min="60" max="3600" step="30" value="300" /> seconds</label>
-            <button class="btn primary" type="submit">Save</button>
-            <span id="pollingStatus" class="muted"></span>
-          </form>
-          <div id="pollingResults"></div>
-        </details>
-
         <div class="card span-2">
           <h2>Sync recent activities (manual)</h2>
           <p>One-shot version of the same logic the auto-monitor uses. Useful for backfilling or testing.</p>
@@ -214,7 +201,7 @@
           <p>Process new activities as soon as Strava sends them. Webhook processing evaluates FIT sensors and replaces any existing gear assignment.</p>
           <form id="gearWebhookForm" class="stack" autocomplete="off">
             <div class="row">
-              <label><input type="checkbox" id="gearWebhookEnabled" /> Use webhook instead of polling</label>
+              <label><input type="checkbox" id="gearWebhookEnabled" /> Enable webhook gear updates</label>
               <button class="btn primary" type="submit">Save</button>
               <span id="gearWebhookStatus" class="muted" role="status"></span>
             </div>

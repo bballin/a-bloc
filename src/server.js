@@ -11,7 +11,6 @@ const { parseFit } = require('./fit');
 const { chooseGear } = require('./matcher');
 const settings = require('./settings');
 const sync = require('./sync');
-const poller = require('./poller');
 const segmentCounts = require('./segment-counts');
 const gearWebhook = require('./gear-webhook');
 
@@ -775,25 +774,6 @@ app.delete('/api/segment-counts/subscription/:id', requireAuth, async (req, res)
   }
 });
 
-// --- Polling (auto-monitor Strava feed) ---
-
-app.get('/api/polling', requireAuth, (req, res) => {
-  res.json(poller.status(req.session.athleteId));
-});
-
-app.post('/api/polling', requireAuth, (req, res) => {
-  const a = req.session.athleteId;
-  const { enabled, intervalSeconds } = req.body || {};
-  if (typeof intervalSeconds !== 'undefined') {
-    poller.setInterval(a, intervalSeconds);
-  }
-  if (typeof enabled === 'boolean') {
-    if (enabled) settings.set(a, 'gear_webhook_enabled', '');
-    poller.setEnabled(a, enabled);
-  }
-  res.json(poller.status(a));
-});
-
 app.get('/api/gear-webhook', requireAuth, (req, res) => {
   res.json({
     enabled: settings.get(req.session.athleteId, 'gear_webhook_enabled') === '1',
@@ -804,8 +784,7 @@ app.get('/api/gear-webhook', requireAuth, (req, res) => {
 app.post('/api/gear-webhook', requireAuth, (req, res) => {
   const enabled = !!(req.body && req.body.enabled);
   settings.set(req.session.athleteId, 'gear_webhook_enabled', enabled ? '1' : '');
-  if (enabled) poller.setEnabled(req.session.athleteId, false);
-  res.json({ enabled, polling: poller.status(req.session.athleteId) });
+  res.json({ enabled });
 });
 
 app.listen(PORT, HOST, () => {
@@ -822,5 +801,4 @@ app.listen(PORT, HOST, () => {
     }
   }
   console.log('  OAuth callback (must match Strava app + APP_BASE_URL): ' + APP_BASE_URL + '/auth/callback');
-  try { poller.resumeAll(); } catch (e) { console.warn('[poller] resumeAll failed:', e.message); }
 });

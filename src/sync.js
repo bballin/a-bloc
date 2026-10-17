@@ -41,31 +41,8 @@ async function fetchOriginalFit(athleteId, activity, preferredSources = SOURCES)
  * Process a single Strava activity end-to-end: download FIT, parse, match, set gear.
  * Returns a result object describing what happened. Logs to processed table.
  */
-// Per-status retry intervals (seconds). If the latest processed row for this
-// activity is in this map and is younger than the value, the poller skips it.
-const RETRY_AFTER = {
-  ok: 24 * 3600,
-  skipped: 24 * 3600,
-  no_mapping: 6 * 3600,
-  no_fit: 30 * 60,
-  parse_error: 6 * 3600,
-  error: 15 * 60,
-  dry_run: 0,
-};
-
-function recentlyAttempted(athleteId, activityId) {
-  const row = db.prepare(
-    'SELECT status, created_at FROM processed WHERE athlete_id = ? AND activity_id = ? ORDER BY created_at DESC LIMIT 1'
-  ).get(athleteId, String(activityId));
-  if (!row) return null;
-  const cooldown = RETRY_AFTER[row.status];
-  if (!cooldown) return null;
-  const age = Math.floor(Date.now() / 1000) - row.created_at;
-  return age < cooldown ? { status: row.status, ageSeconds: age, cooldown } : null;
-}
-
 async function processActivity(athleteId, activity, options = {}) {
-  const { dryRun = false, sources = SOURCES, force = false, respectCooldown = false } = options;
+  const { dryRun = false, sources = SOURCES, force = false } = options;
   const result = {
     activityId: activity.id,
     activityName: activity.name,
@@ -82,15 +59,6 @@ async function processActivity(athleteId, activity, options = {}) {
     result.message = `Already has gear (${activity.gear_id}).`;
     logProcessed(athleteId, activity.id, null, [], null, 'skipped', result.message);
     return result;
-  }
-
-  if (!force && respectCooldown) {
-    const recent = recentlyAttempted(athleteId, activity.id);
-    if (recent) {
-      result.status = 'cooldown';
-      result.message = `Recently attempted (${recent.status}, ${Math.floor(recent.ageSeconds / 60)}m ago).`;
-      return result;
-    }
   }
 
   let fetched;
@@ -166,12 +134,12 @@ function logProcessed(athleteId, activityId, fitFilename, sensors, match, status
   );
 }
 
-async function syncRecent(athleteId, { limit = 10, dryRun = false, sources = SOURCES, force = false, respectCooldown = false } = {}) {
+async function syncRecent(athleteId, { limit = 10, dryRun = false, sources = SOURCES, force = false } = {}) {
   const activities = await strava.listRecentActivities(athleteId, Math.min(limit, 30), 1);
   const results = [];
   for (const a of activities.slice(0, limit)) {
     try {
-      const r = await processActivity(athleteId, a, { dryRun, sources, force, respectCooldown });
+      const r = await processActivity(athleteId, a, { dryRun, sources, force });
       results.push(r);
     } catch (e) {
       results.push({

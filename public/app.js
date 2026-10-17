@@ -37,9 +37,7 @@ async function init() {
     location.reload();
   };
 
-  await Promise.all([loadGear(), loadMappings(), loadSettings(), loadPolling(), loadGearWebhook()]);
-  // Auto-refresh polling status every 15s while page is open
-  setInterval(() => { if (!document.hidden) loadPolling(); }, 15000);
+  await Promise.all([loadGear(), loadMappings(), loadSettings(), loadGearWebhook()]);
 
   $('#inspectFile').onchange = onInspect;
   $('#mappingForm').onsubmit = onSaveMapping;
@@ -48,7 +46,6 @@ async function init() {
   $('#garminForm').onsubmit = onSaveGarmin;
   $('#garminTest').onclick = onTestGarmin;
   $('#syncForm').onsubmit = onSync;
-  $('#pollingForm').onsubmit = onSavePolling;
   $('#gearWebhookForm').onsubmit = onSaveGearWebhook;
   if (requestedPanel && requestedPanel.classList.contains('tab-panel')) {
     switchTab(requestedPanel.id);
@@ -355,55 +352,6 @@ function showMutationStatus(selector, result) {
   document.querySelector(selector).textContent = `${result.succeeded || 0} completed${failed ? `; ${failed} failed` : '.'}`;
 }
 
-async function loadPolling() {
-  let s;
-  try { s = await api('/api/polling'); } catch { return; }
-  $('#pollingEnabled').checked = !!s.enabled;
-  if (document.activeElement !== $('#pollingInterval')) {
-    $('#pollingInterval').value = s.intervalSeconds;
-  }
-  const bits = [];
-  if (s.enabled) bits.push(s.inProgress ? 'running…' : 'enabled');
-  else bits.push('disabled');
-  if (s.lastRunAt) bits.push(`last run ${timeAgo(s.lastRunAt)}`);
-  if (s.lastError) bits.push(`last error: ${s.lastError}`);
-  $('#pollingStatus').textContent = bits.join(' · ');
-
-  const out = $('#pollingResults');
-  if (!s.lastResults || !s.lastResults.length) {
-    out.innerHTML = '';
-    return;
-  }
-  const interesting = s.lastResults.filter(r => r.status !== 'cooldown' && r.status !== 'skipped');
-  if (!interesting.length) {
-    out.innerHTML = `<p class="muted">Last run: ${s.lastResults.length} activities, all skipped or in cooldown.</p>`;
-    return;
-  }
-  out.innerHTML = `<table><thead><tr><th>Activity</th><th>Source</th><th>Gear</th><th>Status</th><th>Detail</th></tr></thead><tbody>${
-    interesting.map(r => `
-      <tr>
-        <td><a href="https://www.strava.com/activities/${r.activityId}" target="_blank">${escapeHtml(r.activityName || r.activityId)}</a></td>
-        <td>${escapeHtml(r.source || '')}</td>
-        <td>${escapeHtml(r.gear || '')}</td>
-        <td class="status-${r.status}">${r.status}</td>
-        <td class="muted">${escapeHtml(r.message || '')}</td>
-      </tr>`).join('')
-  }</tbody></table>`;
-}
-
-async function onSavePolling(ev) {
-  ev.preventDefault();
-  const enabled = $('#pollingEnabled').checked;
-  const intervalSeconds = parseInt($('#pollingInterval').value, 10) || 300;
-  await api('/api/polling', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ enabled, intervalSeconds }),
-  });
-  loadPolling();
-  loadGearWebhook();
-}
-
 async function loadGearWebhook() {
   try {
     const state = await api('/api/gear-webhook');
@@ -427,9 +375,8 @@ async function onSaveGearWebhook(ev) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled }),
     });
-    status.textContent = enabled ? 'enabled; polling disabled' : 'disabled';
+    status.textContent = enabled ? 'enabled' : 'disabled';
     status.className = enabled ? 'status-ok' : 'muted';
-    await loadPolling();
   } catch (e) {
     status.textContent = e.message;
     status.className = 'status-error';

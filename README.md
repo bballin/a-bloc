@@ -15,11 +15,7 @@ You can process activities in four ways:
 
 - **Webhook:** Strava notifies the app about new activities. The app fetches
   and parses the FIT file, then applies a matching gear mapping.
-- **Automatic polling:** The app checks recent activities on an interval and
-  tags rides that have not been processed yet.
 - **Manual sync or Tag button:** Run the same matching process on demand.
-- **Manual FIT upload:** Upload a FIT file; the app matches it to a Strava
-  activity by start time (within five minutes) and sets its gear.
 
 ## Run locally
 
@@ -145,20 +141,9 @@ For example: `garmin:vector_3:12345`, `quarq:dzero:67890`, or
 When multiple mapped sensors appear in a FIT file, the mapping with the lowest
 priority number wins. Ties go to the most recently created mapping.
 
-Automatic polling can be configured in the UI or with
-`POST /api/polling { enabled, intervalSeconds }`. Its default interval is five
-minutes; supported values range from 60 to 3600 seconds. The setting persists
-across restarts. Per-activity backoff prevents repeated retries:
-
-- `ok` / `skipped`: 24 hours
-- `no_mapping` / `parse_error`: 6 hours
-- `no_fit`: 30 minutes
-- `error`: 15 minutes
-
-Alternatively, enable **Use webhook instead of polling** under **Gear Selector
-→ Automatic gear updates**. The two gear-update modes are mutually exclusive.
-Webhook gear updates deliberately replace an activity's existing gear when a
-matching mapping is found.
+Enable **Enable webhook gear updates** in **Configure** to process new activities
+automatically. Webhook gear updates deliberately replace an activity's existing
+gear when a matching mapping is found.
 
 ## Segmentation
 
