@@ -196,8 +196,8 @@ async function initialize() {
     $('#loginSection').classList.remove('hidden');
     return;
   }
-  const countsSection = $('#countsSection') || $('#segmentCountsPanel');
-  countsSection.classList.remove('hidden');
+  const countsSection = $('#countsSection');
+  if (countsSection) countsSection.classList.remove('hidden');
   $('#segmentsForm').addEventListener('submit', saveSegments);
   const subscriptionStatus = $('#subscriptionStatus');
   if (subscriptionStatus) {
