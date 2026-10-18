@@ -48,10 +48,10 @@ provided (default `3000`).
    bash start.sh
    ```
 
-   The script starts the app with `node src/server.js`; dependency installation
-   belongs in the build, not the startup command. Railway's Node builder normally
-   installs the dependencies automatically. If your service has a custom build
-   setup that skips dependency installation, set its **Build Command** to
+   The script starts Node directly so Railway's termination signal reaches the
+   app process. Railway's Node builder detects `package.json` and installs its
+   dependencies during the build. If your service has a custom build setup that
+   skips dependency installation, set its **Build Command** to
    `npm ci --omit=dev`. You can also set the **Start Command** to
    `node src/server.js` instead of using the script.
 3. Add the production values from `.env.railway.example` under the Railway

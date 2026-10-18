@@ -7,4 +7,4 @@ if [ ! -d node_modules ]; then
   npm ci --omit=dev
 fi
 
-exec npm start
+exec node src/server.js

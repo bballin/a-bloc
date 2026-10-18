@@ -18,6 +18,7 @@ const sessionStore = require('./session-store');
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
+const SHUTDOWN_TIMEOUT_MS = 10_000;
 const CLIENT_ID = process.env.STRAVA_CLIENT_ID;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
 const WEBHOOK_VERIFY_TOKEN = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN || SESSION_SECRET;
@@ -817,7 +818,7 @@ app.post('/api/gear-webhook', requireAuth, (req, res) => {
   res.json({ enabled });
 });
 
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   console.log(`Strava Extened listening on ${HOST}:${PORT}`);
   console.log(`  Local:   ${APP_BASE_URL}`);
   if (HOST === '0.0.0.0') {
@@ -832,3 +833,38 @@ app.listen(PORT, HOST, () => {
   }
   console.log('  OAuth callback (must match Strava app + APP_BASE_URL): ' + APP_BASE_URL + '/auth/callback');
 });
+
+let shuttingDown = false;
+let shutdownTimeout;
+
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[info] Received ${signal}; stopping HTTP server`);
+
+  shutdownTimeout = setTimeout(() => {
+    console.warn(`[warn] Shutdown exceeded ${SHUTDOWN_TIMEOUT_MS}ms; closing remaining connections`);
+    if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
+  }, SHUTDOWN_TIMEOUT_MS);
+  shutdownTimeout.unref();
+
+  server.close((error) => {
+    clearTimeout(shutdownTimeout);
+    if (error) {
+      console.error('[error] Failed to close HTTP server cleanly:', error);
+      process.exitCode = 1;
+    }
+
+    try {
+      db.close();
+      console.log('[info] Shutdown complete');
+    } catch (closeError) {
+      console.error('[error] Failed to close database cleanly:', closeError);
+      process.exitCode = 1;
+    }
+  });
+  if (typeof server.closeIdleConnections === 'function') server.closeIdleConnections();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
