@@ -6,6 +6,7 @@
   --muted: #9aa3b2;
   --accent: #fc4c02; /* Strava orange */
   --accent-2: #ff7a3d;
+  --brand-color: var(--text);
   --border: #2a2f3a;
   --ok: #34d399;
   --err: #f87171;
@@ -46,10 +47,14 @@ header .header-actions { display: flex; align-items: center; gap: 20px; }
 .units-options button[aria-pressed="true"] { background: var(--card-2); color: var(--text); }
 .units-options button:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
 header h1 { font-size: 18px; margin: 0; }
-header h1::before {
-  content: ""; display: inline-block; width: 10px; height: 10px;
-  background: var(--accent); border-radius: 50%; margin-right: 8px;
-  vertical-align: middle;
+.brand-heading { flex: 0 1 auto; }
+.brand-banner {
+  display: block;
+  width: clamp(140px, 24vw, 280px);
+  aspect-ratio: 996 / 284;
+  background-color: var(--brand-color);
+  -webkit-mask: url("/brand-banner.svg") center / contain no-repeat;
+  mask: url("/brand-banner.svg") center / contain no-repeat;
 }
 
 main { padding: 24px; max-width: 1200px; margin: 0 auto; }
