@@ -13,6 +13,7 @@ const settings = require('./settings');
 const sync = require('./sync');
 const segmentCounts = require('./segment-counts');
 const gearWebhook = require('./gear-webhook');
+const sessionStore = require('./session-store');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -35,11 +36,18 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(session({
   secret: SESSION_SECRET,
+  store: sessionStore,
   resave: false,
   saveUninitialized: false,
   cookie: { httpOnly: true, sameSite: 'lax' },
 }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  delete req.headers['if-none-match'];
+  delete req.headers['if-modified-since'];
+  next();
+});
 
 function requireAuth(req, res, next) {
   if (!req.session.athleteId) return res.status(401).json({ error: 'not_authenticated' });

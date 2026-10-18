@@ -47,6 +47,14 @@ db.exec(`
     PRIMARY KEY (athlete_id, key)
   );
 
+  CREATE TABLE IF NOT EXISTS sessions (
+    sid TEXT PRIMARY KEY,
+    sess TEXT NOT NULL,
+    expires INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions(expires);
+
   CREATE TABLE IF NOT EXISTS processed (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     athlete_id INTEGER NOT NULL,

@@ -76,9 +76,10 @@ provided (default `3000`).
    `app.db` directly in the volume. If you choose `/app/data`, the database
    will be `/app/data/app.db`. If the Railway variable is unavailable, set
    `APP_DATA_DIR` to the volume's mount path. The volume keeps athlete tokens,
-   mappings, settings, and processing history across deploys. The app warns
-   at startup if it detects Railway without a configured volume path; data
-   written to the container filesystem can be lost when Railway replaces it.
+   mappings, settings, processing history, and login sessions across deploys.
+   The app warns at startup if it detects Railway without a configured volume
+   path; data written to the container filesystem can be lost when Railway
+   replaces it.
 6. Deploy, open the public app URL, and connect your Strava account.
 
 Railway provides `PORT`; the app binds to `0.0.0.0` and uses that port
