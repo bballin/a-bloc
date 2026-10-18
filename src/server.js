@@ -289,16 +289,27 @@ app.get('/api/settings', requireAuth, (req, res) => {
 app.post('/api/settings/garmin', requireAuth, (req, res) => {
   const { username, password } = req.body || {};
   const a = req.session.athleteId;
+  let credentialsChanged = false;
   if (typeof username === 'string') {
-    if (username) settings.set(a, 'garmin_username', username);
-    else settings.remove(a, 'garmin_username');
+    const currentUsername = settings.get(a, 'garmin_username');
+    if (username !== currentUsername) {
+      if (username) settings.set(a, 'garmin_username', username);
+      else settings.remove(a, 'garmin_username');
+      credentialsChanged = true;
+    }
   }
   if (typeof password === 'string') {
-    if (password) settings.set(a, 'garmin_password', password);
-    else settings.remove(a, 'garmin_password');
+    const currentPassword = settings.get(a, 'garmin_password');
+    if (password !== currentPassword) {
+      if (password) settings.set(a, 'garmin_password', password);
+      else settings.remove(a, 'garmin_password');
+      credentialsChanged = true;
+    }
   }
-  settings.remove(a, 'garmin_oauth1');
-  settings.remove(a, 'garmin_oauth2');
+  if (credentialsChanged) {
+    settings.remove(a, 'garmin_oauth1');
+    settings.remove(a, 'garmin_oauth2');
+  }
   if (req.is('application/x-www-form-urlencoded')) {
     return res.redirect(303, '/#configurationPanel');
   }
@@ -312,6 +323,15 @@ app.post('/api/settings/garmin/test', requireAuth, async (req, res) => {
     if (!client) return res.status(400).json({ ok: false, error: 'Garmin is not configured.' });
     res.json({ ok: true });
   } catch (e) {
+    if (e && (
+      (e.response && e.response.status === 429) ||
+      /rate.?limited|\b429\b/i.test(e.message || '')
+    )) {
+      return res.status(429).json({
+        ok: false,
+        error: e.message,
+      });
+    }
     res.status(400).json({ ok: false, error: e.message });
   }
 });

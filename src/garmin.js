@@ -5,6 +5,15 @@ const AdmZip = require('adm-zip');
 const { GarminConnect } = require('garmin-connect');
 const settings = require('./settings');
 
+const LOGIN_RATE_LIMIT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+function isRateLimited(error) {
+  return error && (
+    (error.response && error.response.status === 429) ||
+    /\b429\b|rate.?limited/i.test(error.message || '')
+  );
+}
+
 /**
  * Returns a logged-in GarminConnect client for the athlete, or null if
  * Garmin is not configured. Reuses stored OAuth tokens when possible.
@@ -22,22 +31,30 @@ async function getClient(athleteId) {
   if (oauth1Raw && oauth2Raw) {
     try {
       client.loadToken(JSON.parse(oauth1Raw), JSON.parse(oauth2Raw));
-      // Smoke-test the token
-      await client.getUserProfile();
       restored = true;
     } catch (e) {
-      if (e && e.response && e.response.status === 429) throw e;
       restored = false;
     }
   }
   if (!restored) {
-    await client.login();
+    const retryAfter = Number(settings.get(athleteId, 'garmin_login_retry_after'));
+    if (retryAfter > Date.now()) {
+      throw new Error(`Garmin login is paused after a rate-limit response. Try again after ${new Date(retryAfter).toLocaleString()}.`);
+    }
     try {
-      const o1 = client.client && client.client.oauth1Token;
-      const o2 = client.client && client.client.oauth2Token;
-      if (o1) settings.set(athleteId, 'garmin_oauth1', JSON.stringify(o1));
-      if (o2) settings.set(athleteId, 'garmin_oauth2', JSON.stringify(o2));
-    } catch { /* ignore */ }
+      await client.login();
+    } catch (error) {
+      if (!isRateLimited(error)) throw error;
+      const retryAfter = Date.now() + LOGIN_RATE_LIMIT_COOLDOWN_MS;
+      settings.set(athleteId, 'garmin_login_retry_after', String(retryAfter));
+      throw new Error(`Garmin rate-limited login attempts. Further login attempts are paused until ${new Date(retryAfter).toLocaleString()}.`);
+    }
+
+    const o1 = client.client && client.client.oauth1Token;
+    const o2 = client.client && client.client.oauth2Token;
+    if (!o1 || !o2) throw new Error('Garmin login completed without returning reusable OAuth tokens.');
+    settings.set(athleteId, 'garmin_oauth1', JSON.stringify(o1));
+    settings.set(athleteId, 'garmin_oauth2', JSON.stringify(o2));
   }
   return client;
 }

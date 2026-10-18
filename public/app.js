@@ -423,12 +423,19 @@ async function onSaveGarmin(ev) {
 }
 
 async function onTestGarmin() {
-  $('#garminStatus').textContent = 'Logging in…';
+  const button = $('#garminTest');
+  const status = $('#garminStatus');
+  button.disabled = true;
+  status.textContent = 'Logging in…';
+  status.className = 'muted';
   try {
     const r = await api('/api/settings/garmin/test', { method: 'POST' });
-    $('#garminStatus').textContent = `OK: ${r.displayName || 'logged in'}`;
+    status.textContent = `OK: ${r.displayName || 'logged in'}`;
   } catch (e) {
-    $('#garminStatus').textContent = `Error: ${e.message}`;
+    status.textContent = `Error: ${e.message}`;
+    status.className = 'status-error';
+  } finally {
+    button.disabled = false;
   }
 }
 
