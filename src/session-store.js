@@ -1,7 +1,7 @@
 const session = require('express-session');
 const db = require('./db');
 
-const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
 
 class SQLiteSessionStore extends session.Store {

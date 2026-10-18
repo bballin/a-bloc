@@ -19,6 +19,7 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 const SHUTDOWN_TIMEOUT_MS = 10_000;
+const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const CLIENT_ID = process.env.STRAVA_CLIENT_ID;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
 const WEBHOOK_VERIFY_TOKEN = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN || SESSION_SECRET;
@@ -40,7 +41,7 @@ app.use(session({
   store: sessionStore,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax' },
+  cookie: { httpOnly: true, sameSite: 'lax', maxAge: SESSION_MAX_AGE_MS },
 }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/api', (req, res, next) => {

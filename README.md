@@ -77,9 +77,11 @@ provided (default `3000`).
    will be `/app/data/app.db`. If the Railway variable is unavailable, set
    `APP_DATA_DIR` to the volume's mount path. The volume keeps athlete tokens,
    mappings, settings, processing history, and login sessions across deploys.
-   The app warns at startup if it detects Railway without a configured volume
-   path; data written to the container filesystem can be lost when Railway
-   replaces it.
+   The Strava connection and app login are retained across redeploys as long
+   as the volume is mounted and `SESSION_SECRET` stays unchanged. The app login
+   cookie lasts up to 30 days. The app warns at startup if it detects Railway
+   without a configured volume path; data written to the container filesystem
+   can be lost when Railway replaces it.
 6. Deploy, open the public app URL, and connect your Strava account.
 
 Railway provides `PORT`; the app binds to `0.0.0.0` and uses that port
