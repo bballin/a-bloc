@@ -67,6 +67,14 @@ provided (default `3000`).
      `https://your-app.up.railway.app` (no trailing slash).
    - `STRAVA_WEBHOOK_VERIFY_TOKEN` — a separate random value for Strava webhook
      verification.
+   - `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` — set to `15`. Railway sends
+     `SIGTERM` to the old deployment and, by default, waits **0 seconds**
+     before sending `SIGKILL`, which kills the app before it can finish
+     in-flight requests and webhook jobs and close the database. With a drain
+     window, the app stops accepting work, waits for pending requests and
+     webhook processing, closes SQLite, and exits; it gives itself the drain
+     window minus 2 seconds. The app logs a startup warning on Railway when
+     this variable is missing.
    Do not set `PORT` manually; Railway provides it at runtime.
 4. In your Strava API application's settings, set **Authorization Callback
    Domain** to the hostname from `APP_BASE_URL`, without `https://` or a path.

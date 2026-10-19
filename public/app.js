@@ -6,6 +6,8 @@ let localSegments = [];
 let localSegmentsSort = { key: 'name', direction: 1 };
 let activityPage = 0;
 let activitiesLoading = false;
+let garminLoginDisabledUntil = null;
+let garminPauseTimer = null;
 
 async function api(path, opts = {}) {
   const res = await fetch(path, { credentials: 'same-origin', ...opts });
@@ -23,7 +25,7 @@ async function init() {
   $('#garminTest').onclick = onTestGarmin;
   const requestedPanel = document.getElementById(window.location.hash.slice(1));
 
-  const me = await api('/api/me');
+  const [me] = await Promise.all([api('/api/me'), loadGarminLoginStatus()]);
   if (!me.authenticated) {
     $('#loginSection').classList.remove('hidden');
     $('#mainSection').classList.remove('hidden');
@@ -395,14 +397,32 @@ async function loadSettings() {
   $('#garminStatus').textContent = describeGarmin(s.garmin);
   updateGarminPauseWarning(s.garmin.loginDisabledUntil);
 }
+async function loadGarminLoginStatus() {
+  try {
+    const { loginDisabledUntil } = await api('/api/garmin/status');
+    updateGarminPauseWarning(loginDisabledUntil);
+  } catch (e) {
+    console.error('Failed to load Garmin login status:', e);
+  }
+}
+function isGarminLoginPaused() {
+  return Number.isFinite(garminLoginDisabledUntil) && garminLoginDisabledUntil > Date.now();
+}
 function updateGarminPauseWarning(disabledUntil) {
+  garminLoginDisabledUntil = disabledUntil;
   const warning = $('#garminPauseWarning');
-  const disabled = Number.isFinite(disabledUntil) && disabledUntil > Date.now();
+  const disabled = isGarminLoginPaused();
   warning.classList.toggle('hidden', !disabled);
   warning.textContent = disabled
     ? `Garmin access is temporarily disabled until ${new Date(disabledUntil).toLocaleString()}.`
     : '';
   $('#garminTest').disabled = disabled;
+  clearTimeout(garminPauseTimer);
+  // setTimeout overflows above ~24.8 days; re-check on the next page load instead.
+  const remainingMs = disabled ? disabledUntil - Date.now() : 0;
+  if (disabled && remainingMs < 2 ** 31 - 1) {
+    garminPauseTimer = setTimeout(() => updateGarminPauseWarning(null), remainingMs);
+  }
 }
 function describeGarmin(g) {
   if (!g.hasUsername || !g.hasPassword) return 'Not configured.';
@@ -444,16 +464,11 @@ async function onTestGarmin() {
   } catch (e) {
     status.textContent = `Error: ${e.message}`;
     status.className = 'status-error';
-    if (/rate.?limited|\b429\b/i.test(e.message)) {
-      try {
-        const s = await api('/api/settings');
-        updateGarminPauseWarning(s.garmin.loginDisabledUntil);
-      } catch (refreshError) {
-        console.error('Failed to refresh Garmin login status:', refreshError);
-      }
+    if (/rate.?limited|temporarily disabled|\b429\b/i.test(e.message)) {
+      await loadGarminLoginStatus();
     }
   } finally {
-    button.disabled = false;
+    button.disabled = isGarminLoginPaused();
   }
 }
 

@@ -18,14 +18,37 @@ const sessionStore = require('./session-store');
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
-const SHUTDOWN_TIMEOUT_MS = 10_000;
+const IS_RAILWAY = !!(process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_PROJECT_ID);
+const RAILWAY_DRAIN_SECONDS = Number(process.env.RAILWAY_DEPLOYMENT_DRAINING_SECONDS);
+// Finish shutdown before Railway escalates SIGTERM to SIGKILL.
+const SHUTDOWN_TIMEOUT_MS = RAILWAY_DRAIN_SECONDS > 0
+  ? Math.max(1000, RAILWAY_DRAIN_SECONDS * 1000 - 2000)
+  : 10_000;
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const CLIENT_ID = process.env.STRAVA_CLIENT_ID;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
 const WEBHOOK_VERIFY_TOKEN = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN || SESSION_SECRET;
 
+
+console.log(`Started. PID=${process.pid}`);
+
+
 if (!CLIENT_ID || !process.env.STRAVA_CLIENT_SECRET) {
   console.warn('[warn] STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET are not set. OAuth will fail until you create .env (see .env.example).');
+}
+if (IS_RAILWAY && !(RAILWAY_DRAIN_SECONDS > 0)) {
+  console.warn('[warn] RAILWAY_DEPLOYMENT_DRAINING_SECONDS is not set. Railway will SIGKILL this process immediately after SIGTERM, so graceful shutdown cannot complete.');
+}
+
+let shuttingDown = false;
+const backgroundTasks = new Set();
+
+function runInBackground(logPrefix, task) {
+  const promise = Promise.resolve()
+    .then(task)
+    .catch(error => console.error(`${logPrefix}:`, error.message))
+    .finally(() => backgroundTasks.delete(promise));
+  backgroundTasks.add(promise);
 }
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
@@ -34,6 +57,11 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const upload = multer({ dest: UPLOAD_DIR, limits: { fileSize: 50 * 1024 * 1024 } });
 
 const app = express();
+app.use((req, res, next) => {
+  // Release keep-alive sockets so server.close() can finish during shutdown.
+  if (shuttingDown) res.set('Connection', 'close');
+  next();
+});
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(session({
@@ -66,20 +94,21 @@ app.get('/api/webhook/strava', (req, res) => {
 });
 
 app.post('/api/webhook/strava', (req, res) => {
+  // Strava retries non-2xx deliveries, so the next deployment can handle this event.
+  if (shuttingDown) return res.status(503).json({ error: 'shutting_down' });
   const event = req.body || {};
   res.status(200).json({ received: true });
   if (event.object_type !== 'activity' || event.aspect_type !== 'create') return;
   if (!/^\d+$/.test(String(event.owner_id)) || !/^\d+$/.test(String(event.object_id))) return;
   if (!strava.getAthlete(event.owner_id)) return;
-  setImmediate(() => {
-    if (settings.get(event.owner_id, 'gear_webhook_enabled') === '1') {
-      gearWebhook.processActivity(event.owner_id, event.object_id)
-        .then(result => console.log(`[gear-webhook] Activity ${event.object_id}: ${result.status} - ${result.message}`))
-        .catch(error => console.error(`[gear-webhook] Activity ${event.object_id}:`, error.message));
-    }
-    segmentCounts.processActivity(event.owner_id, event.object_id)
-      .catch(error => console.error(`[segment-counts] Activity ${event.object_id}:`, error.message));
-  });
+  if (settings.get(event.owner_id, 'gear_webhook_enabled') === '1') {
+    runInBackground(`[gear-webhook] Activity ${event.object_id}`, async () => {
+      const result = await gearWebhook.processActivity(event.owner_id, event.object_id);
+      console.log(`[gear-webhook] Activity ${event.object_id}: ${result.status} - ${result.message}`);
+    });
+  }
+  runInBackground(`[segment-counts] Activity ${event.object_id}`,
+    () => segmentCounts.processActivity(event.owner_id, event.object_id));
 });
 
 // --- OAuth ---
@@ -293,6 +322,11 @@ app.get('/api/settings', requireAuth, (req, res) => {
   res.json(settings.summary(req.session.athleteId));
 });
 
+// Public so the Garmin lockout is enforced in the UI whether or not a Strava user is signed in.
+app.get('/api/garmin/status', (req, res) => {
+  res.json({ loginDisabledUntil: settings.getGarminLoginDisabledUntil() });
+});
+
 // Save Garmin credentials. Body: { username, password } — both optional;
 // passing empty string clears. Saving clears any cached oauth tokens so the next
 // call re-logs-in with the new creds.
@@ -327,6 +361,14 @@ app.post('/api/settings/garmin', requireAuth, (req, res) => {
 });
 
 app.post('/api/settings/garmin/test', requireAuth, async (req, res) => {
+  const disabledUntil = settings.getGarminLoginDisabledUntil();
+  if (disabledUntil) {
+    return res.status(429).json({
+      ok: false,
+      error: `Garmin access is temporarily disabled until ${new Date(disabledUntil).toLocaleString()}.`,
+      loginDisabledUntil: disabledUntil,
+    });
+  }
   try {
     const garmin = require('./garmin');
     const client = await garmin.getClient(req.session.athleteId);
@@ -835,36 +877,50 @@ const server = app.listen(PORT, HOST, () => {
   console.log('  OAuth callback (must match Strava app + APP_BASE_URL): ' + APP_BASE_URL + '/auth/callback');
 });
 
-let shuttingDown = false;
-let shutdownTimeout;
-
-function shutdown(signal) {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  console.log(`[info] Received ${signal}; stopping HTTP server`);
-
-  shutdownTimeout = setTimeout(() => {
-    console.warn(`[warn] Shutdown exceeded ${SHUTDOWN_TIMEOUT_MS}ms; closing remaining connections`);
-    if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
-  }, SHUTDOWN_TIMEOUT_MS);
-  shutdownTimeout.unref();
-
-  server.close((error) => {
-    clearTimeout(shutdownTimeout);
-    if (error) {
-      console.error('[error] Failed to close HTTP server cleanly:', error);
-      process.exitCode = 1;
-    }
-
-    try {
-      db.close();
-      console.log('[info] Shutdown complete');
-    } catch (closeError) {
-      console.error('[error] Failed to close database cleanly:', closeError);
-      process.exitCode = 1;
-    }
+function waitForServerClose() {
+  return new Promise(resolve => {
+    server.close(error => {
+      if (error) console.error('[error] Failed to close HTTP server cleanly:', error);
+      resolve(!error);
+    });
+    if (typeof server.closeIdleConnections === 'function') server.closeIdleConnections();
   });
-  if (typeof server.closeIdleConnections === 'function') server.closeIdleConnections();
+}
+
+async function waitForBackgroundTasks() {
+  while (backgroundTasks.size) await Promise.allSettled([...backgroundTasks]);
+}
+
+async function shutdown(signal) {
+  if (shuttingDown) {
+    console.warn(`[warn] Received ${signal} again; exiting immediately`);
+    process.exit(1);
+  }
+  shuttingDown = true;
+  console.log(`[info] Received ${signal}; draining HTTP requests and ${backgroundTasks.size} background task(s)`);
+
+  let timeout;
+  const deadline = new Promise(resolve => { timeout = setTimeout(resolve, SHUTDOWN_TIMEOUT_MS, 'timeout'); });
+  const drained = Promise.all([waitForServerClose(), waitForBackgroundTasks()])
+    .then(([serverClosed]) => (serverClosed ? 'drained' : 'error'));
+  const outcome = await Promise.race([drained, deadline]);
+  clearTimeout(timeout);
+
+  let exitCode = outcome === 'drained' ? 0 : 1;
+  if (outcome === 'timeout') {
+    console.warn(`[warn] Shutdown exceeded ${SHUTDOWN_TIMEOUT_MS}ms with ${backgroundTasks.size} background task(s) pending; forcing exit`);
+    if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
+  }
+
+  try {
+    db.close();
+    console.log('[info] Shutdown complete');
+  } catch (error) {
+    console.error('[error] Failed to close database cleanly:', error);
+    exitCode = 1;
+  }
+  // Exit explicitly so lingering sockets or timers cannot outlive Railway's drain window.
+  process.exit(exitCode);
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
