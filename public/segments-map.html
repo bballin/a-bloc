@@ -150,7 +150,7 @@
         : 'Loading…';
       const categoryLabel = formatCategory(category);
       return `<strong>${escapeHtml(segment.name)}</strong>
-        <div>${escapeHtml(formatDistance(segment.distance))}</div>
+        <div>${formatDistance(segment.distance)}</div>
         <div>Elevation gain: ${escapeHtml(formatMeters(elevation))}</div>
         <div>Average gradient: ${escapeHtml(formatPercent(grade))}</div>
         ${categoryLabel ? `<div>Climb category: ${escapeHtml(categoryLabel)}</div>` : ''}
