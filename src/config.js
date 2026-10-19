@@ -60,6 +60,11 @@ module.exports = Object.freeze({
     clientId: env.STRAVA_CLIENT_ID || '',
     clientSecret: env.STRAVA_CLIENT_SECRET || '',
   }),
+  wahoo: Object.freeze({
+    clientId: env.WAHOO_CLIENT_ID || '',
+    clientSecret: env.WAHOO_CLIENT_SECRET || '',
+    callbackUrl: `${appBaseUrl}/auth/wahoo/callback`,
+  }),
   dataDir,
   uploadDir: path.join(__dirname, '..', 'uploads'),
   // Finish shutdown before Railway escalates SIGTERM to SIGKILL.

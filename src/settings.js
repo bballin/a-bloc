@@ -1,4 +1,5 @@
 const db = require('./db');
+const config = require('./config');
 const { encrypt, decrypt } = require('./crypto');
 
 const GARMIN_LOGIN_DISABLED_KEY = 'garmin_login_disabled_until';
@@ -7,6 +8,12 @@ const ENCRYPTED_KEYS = new Set([
   'garmin_password',
   'garmin_oauth1',
   'garmin_oauth2',
+  'wahoo_access_token',
+  'wahoo_refresh_token',
+  'hammerhead_password',
+  'hammerhead_token',
+  'coros_password',
+  'coros_token',
   'strava_password',
   'strava_session_cookie',
 ]);
@@ -66,6 +73,20 @@ function summary(athleteId) {
       hasPassword: keys.has('garmin_password'),
       hasToken: keys.has('garmin_oauth2'),
       loginDisabledUntil: getGarminLoginDisabledUntil(),
+    },
+    wahoo: {
+      appConfigured: !!(config.wahoo.clientId && config.wahoo.clientSecret),
+      connected: keys.has('wahoo_refresh_token'),
+    },
+    hammerhead: {
+      hasUsername: keys.has('hammerhead_username'),
+      hasPassword: keys.has('hammerhead_password'),
+      hasToken: keys.has('hammerhead_token'),
+    },
+    coros: {
+      hasUsername: keys.has('coros_username'),
+      hasPassword: keys.has('coros_password'),
+      hasToken: keys.has('coros_token'),
     },
     strava_web: {
       hasUsername: keys.has('strava_username'),

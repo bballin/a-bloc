@@ -69,7 +69,11 @@ function createWebhookQueue({ db, handlers, logger = console, now = Date.now, ..
   async function run(job) {
     const label = `[webhook-jobs] ${job.kind} activity ${job.activity_id} (attempt ${job.attempts}/${maxAttempts})`;
     try {
-      await handlers[job.kind](job.athlete_id, job.activity_id);
+      await handlers[job.kind](job.athlete_id, job.activity_id, {
+        attempt: job.attempts,
+        maxAttempts,
+        isFinalAttempt: job.attempts >= maxAttempts,
+      });
       completeStatement.run(seconds(now()), job.id);
     } catch (error) {
       const message = (error && error.message) || String(error);

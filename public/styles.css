@@ -120,6 +120,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .original-file-options { display: grid; grid-template-columns: 1fr; gap: 24px; }
 #configurationPanel > .card > h2 { font-size: 20px; }
 .original-file-options h3 { font-size: 18px; }
+.original-file-options + p { margin-top: 24px; margin-bottom: 0; }
 @media (max-width: 800px) {
   .settings-grid { grid-template-columns: 1fr; }
 }

@@ -14,8 +14,8 @@ let shuttingDown = false;
 const queue = createWebhookQueue({
   db,
   handlers: {
-    async gear(athleteId, activityId) {
-      const result = await gearWebhook.processActivity(athleteId, activityId);
+    async gear(athleteId, activityId, job) {
+      const result = await gearWebhook.processActivity(athleteId, activityId, job);
       console.log(`[gear-webhook] Activity ${activityId}: ${result.status} - ${result.message}`);
     },
     segment_counts: (athleteId, activityId) => segmentCounts.processActivity(athleteId, activityId),

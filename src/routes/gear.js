@@ -21,7 +21,7 @@ function syncOptions(body = {}) {
   return {
     dryRun: !!body.dryRun,
     force: !!body.force,
-    sources: Array.isArray(body.sources) && body.sources.length ? body.sources : ['garmin', 'strava_web'],
+    sources: Array.isArray(body.sources) && body.sources.length ? body.sources : sync.SOURCES,
   };
 }
 

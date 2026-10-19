@@ -16,6 +16,13 @@ async function init() {
   });
   $('#garminForm').onsubmit = onSaveGarmin;
   $('#garminTest').onclick = onTestGarmin;
+  $('#wahooConnect').onclick = () => { window.location.href = '/auth/wahoo/login'; };
+  $('#wahooTest').onclick = onTestWahoo;
+  $('#wahooDisconnect').onclick = onDisconnectWahoo;
+  document.querySelectorAll('form[data-provider]').forEach(form => { form.onsubmit = onSaveProviderCredentials; });
+  document.querySelectorAll('[data-test-provider]').forEach(button => {
+    button.onclick = () => onTestProvider(button.dataset.testProvider, button);
+  });
   const requestedPanel = document.getElementById(window.location.hash.slice(1));
 
   const me = await api('/api/me');
@@ -398,8 +405,115 @@ function timeAgo(epochSeconds) {
 
 async function loadSettings() {
   const s = await api('/api/settings');
-  $('#garminStatus').textContent = describeGarmin(s.garmin);
+  $('#garminStatus').textContent = describeCredentials(s.garmin);
   updateGarminPauseWarning(s.garmin.loginDisabledUntil);
+  renderWahoo(s.wahoo);
+  for (const provider of ['hammerhead', 'coros']) {
+    $(`#${provider}Status`).textContent = describeCredentials(s[provider]);
+  }
+  showWahooRedirectResult();
+}
+
+const PROVIDER_NAMES = { hammerhead: 'Hammerhead', coros: 'COROS' };
+
+function renderWahoo(w, message) {
+  const status = $('#wahooStatus');
+  $('#wahooConnect').disabled = !w.appConfigured;
+  $('#wahooConnect').textContent = w.connected ? 'Reconnect Wahoo' : 'Connect Wahoo';
+  $('#wahooTest').disabled = !w.connected;
+  $('#wahooDisconnect').disabled = !w.connected;
+  status.className = 'muted';
+  status.textContent = message || (!w.appConfigured
+    ? 'Not available: the server has no Wahoo API credentials (WAHOO_CLIENT_ID / WAHOO_CLIENT_SECRET).'
+    : w.connected ? 'Connected.' : 'Not connected.');
+}
+
+// The Wahoo OAuth callback redirects back with ?wahoo=connected|denied.
+function showWahooRedirectResult() {
+  const params = new URLSearchParams(window.location.search);
+  const result = params.get('wahoo');
+  if (!result) return;
+  const status = $('#wahooStatus');
+  if (result === 'connected') {
+    status.textContent = 'Wahoo connected.';
+    status.className = 'status-ok';
+  } else {
+    status.textContent = 'Wahoo authorization was cancelled.';
+    status.className = 'status-error';
+  }
+  params.delete('wahoo');
+  const query = params.toString();
+  history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+}
+
+async function onTestWahoo() {
+  const button = $('#wahooTest');
+  const status = $('#wahooStatus');
+  button.disabled = true;
+  status.textContent = 'Checking…';
+  status.className = 'muted';
+  try {
+    const r = await api('/api/settings/wahoo/test', { method: 'POST' });
+    status.textContent = `OK: ${r.displayName || 'connected'}`;
+    status.className = 'status-ok';
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+    status.className = 'status-error';
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function onDisconnectWahoo() {
+  if (!confirm('Disconnect Wahoo? A Bloc will stop fetching FIT files from Wahoo.')) return;
+  try {
+    const result = await api('/api/settings/wahoo/disconnect', { method: 'POST' });
+    renderWahoo(result, 'Disconnected.');
+  } catch (e) {
+    $('#wahooStatus').textContent = `Error: ${e.message}`;
+    $('#wahooStatus').className = 'status-error';
+  }
+}
+
+async function onSaveProviderCredentials(ev) {
+  ev.preventDefault();
+  const provider = ev.target.dataset.provider;
+  const fd = new FormData(ev.target);
+  const status = $(`#${provider}Status`);
+  status.textContent = 'Saving…';
+  status.className = 'muted';
+  try {
+    const result = await api(`/api/settings/${provider}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: fd.get('username') || '',
+        password: fd.get('password') || '',
+      }),
+    });
+    ev.target.reset();
+    status.textContent = `Saved. ${describeCredentials(result)}`;
+  } catch (error) {
+    status.textContent = `Error: ${error.message}`;
+    status.className = 'status-error';
+  }
+}
+
+async function onTestProvider(provider, button) {
+  const status = $(`#${provider}Status`);
+  button.disabled = true;
+  status.textContent = 'Logging in…';
+  status.className = 'muted';
+  try {
+    await api(`/api/settings/${provider}/test`, { method: 'POST' });
+    status.textContent = `OK: logged in to ${PROVIDER_NAMES[provider]}.`;
+    status.className = 'status-ok';
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+    status.className = 'status-error';
+  } finally {
+    button.disabled = false;
+  }
 }
 async function loadGarminLoginStatus() {
   try {
@@ -428,7 +542,7 @@ function updateGarminPauseWarning(disabledUntil) {
     garminPauseTimer = setTimeout(() => updateGarminPauseWarning(null), remainingMs);
   }
 }
-function describeGarmin(g) {
+function describeCredentials(g) {
   if (!g.hasUsername || !g.hasPassword) return 'Not configured.';
   return g.hasToken ? 'Configured (cached token).' : 'Configured.';
 }
@@ -449,7 +563,7 @@ async function onSaveGarmin(ev) {
       }),
     });
     ev.target.reset();
-    status.textContent = `Saved. ${describeGarmin(result)}`;
+    status.textContent = `Saved. ${describeCredentials(result)}`;
   } catch (error) {
     status.textContent = `Error: ${error.message}`;
     status.className = 'status-error';

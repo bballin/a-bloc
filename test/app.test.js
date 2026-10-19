@@ -43,6 +43,16 @@ test('Garmin lockout status is public; Garmin actions require sign-in', async ()
   assert.equal((await request('/api/settings')).status, 401);
 });
 
+test('original file source settings require sign-in', async () => {
+  for (const path of ['/api/settings/hammerhead', '/api/settings/coros', '/api/settings/coros/test',
+    '/api/settings/hammerhead/test', '/api/settings/wahoo/test', '/api/settings/wahoo/disconnect']) {
+    assert.equal((await request(path, { method: 'POST', body: '{}' })).status, 401, path);
+  }
+  const wahooLogin = await request('/auth/wahoo/login', { redirect: 'manual' });
+  assert.equal(wahooLogin.status, 302);
+  assert.equal(wahooLogin.headers.get('location'), '/');
+});
+
 test('Strava webhook verification checks the verify token', async () => {
   const ok = await request(`/api/webhook/strava?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(config.webhookVerifyToken)}&hub.challenge=abc`);
   assert.deepEqual(await ok.json(), { 'hub.challenge': 'abc' });
@@ -106,4 +116,21 @@ test('signed-in routes: FIT uploads are parsed and cleaned up, local segments an
   assert.equal(created.status, 200);
   const { mappings } = await (await fetch(`${baseUrl}/api/mappings`, { headers: { cookie } })).json();
   assert.deepEqual(mappings.map(m => [m.sensor_key, m.gear_name]), [['garmin:edge:1', 'Crux']]);
+
+  const saved = await fetch(`${baseUrl}/api/settings/coros`, {
+    method: 'POST', headers: { cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'rider@example.com', password: 'pw' }),
+  });
+  assert.deepEqual(await saved.json(), { ok: true, hasUsername: true, hasPassword: true, hasToken: false });
+  settings.set(77, 'coros_token', '{"accessToken":"t"}');
+  await fetch(`${baseUrl}/api/settings/coros`, {
+    method: 'POST', headers: { cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: 'changed' }),
+  });
+  assert.equal(settings.get(77, 'coros_token'), null, 'changing credentials drops the cached token');
+  assert.equal(settings.get(77, 'coros_password'), 'changed');
+
+  const summary = await (await fetch(`${baseUrl}/api/settings`, { headers: { cookie } })).json();
+  assert.deepEqual(Object.keys(summary).sort(), ['coros', 'garmin', 'hammerhead', 'strava_web', 'wahoo']);
+  assert.equal(summary.wahoo.connected, false);
 });

@@ -1,38 +1,103 @@
 const processed = require('./store/processed');
 const strava = require('./strava');
 const stravaWeb = require('./strava-web');
+const settings = require('./settings');
 const garmin = require('./garmin');
+const wahoo = require('./wahoo');
+const hammerhead = require('./hammerhead');
+const coros = require('./coros');
 const { parseFit } = require('./fit');
 const { chooseGear } = require('./matcher');
 
-const SOURCES = ['garmin', 'strava_web'];
+// Device sources are searched for an activity starting at the Strava start
+// time; Strava's own export of the uploaded file is the generic fallback.
+const SOURCES = ['garmin', 'wahoo', 'hammerhead', 'coros', 'strava_web'];
+
+// Matched against the Strava activity's device_name/external_id to try the
+// most likely source first.
+const DEVICE_HINTS = {
+  garmin: /garmin/i,
+  wahoo: /wahoo|elemnt/i,
+  hammerhead: /hammerhead|karoo/i,
+  coros: /coros/i,
+};
+
+// fetch() resolves to { fitPath, cleanup } or null when the source has no matching activity.
+const PROVIDERS = {
+  garmin: {
+    isConfigured: athleteId => !!(settings.get(athleteId, 'garmin_username') && settings.get(athleteId, 'garmin_password')),
+    async fetch(athleteId, activity) {
+      const client = await garmin.getClient(athleteId);
+      if (!client) return null;
+      const match = await garmin.findActivityByStartTime(client, activity.start_date);
+      return match ? garmin.downloadOriginalFit(client, match) : null;
+    },
+  },
+  wahoo: {
+    isConfigured: athleteId => wahoo.isAppConfigured() && wahoo.isConnected(athleteId),
+    async fetch(athleteId, activity) {
+      const match = await wahoo.findWorkoutByStartTime(athleteId, activity.start_date);
+      return match ? wahoo.downloadOriginalFit(athleteId, match) : null;
+    },
+  },
+  hammerhead: {
+    isConfigured: athleteId => hammerhead.isConfigured(athleteId),
+    async fetch(athleteId, activity) {
+      const client = await hammerhead.getClient(athleteId);
+      const match = await hammerhead.findActivityByStartTime(client, activity.start_date);
+      return match ? hammerhead.downloadOriginalFit(client, match) : null;
+    },
+  },
+  coros: {
+    isConfigured: athleteId => coros.isConfigured(athleteId),
+    async fetch(athleteId, activity) {
+      const client = await coros.getClient(athleteId);
+      const match = await coros.findActivityByStartTime(client, activity.start_date);
+      return match ? coros.downloadOriginalFit(client, match) : null;
+    },
+  },
+  strava_web: {
+    isConfigured: athleteId => !!(settings.get(athleteId, 'strava_session_cookie')
+      || (settings.get(athleteId, 'strava_username') && settings.get(athleteId, 'strava_password'))),
+    fetch: (athleteId, activity) => stravaWeb.downloadOriginalFit(athleteId, activity.id),
+  },
+};
+
+// Moves the source named by the activity's recording device (if any) to the front.
+function orderSources(sources, activity) {
+  const hint = `${activity.device_name || ''} ${activity.external_id || ''}`;
+  const preferred = sources.filter(src => DEVICE_HINTS[src] && DEVICE_HINTS[src].test(hint));
+  return [...preferred, ...sources.filter(src => !preferred.includes(src))];
+}
 
 /**
- * Resolve an "original" FIT file for a Strava activity. Returns
- * { source, fitPath, cleanup }. Throws if no source produced a FIT.
+ * Resolve an "original" FIT file for a Strava activity by checking each
+ * configured source for an activity with the same start time. Returns
+ * { source, fitPath, cleanup }. Throws if no source produced a FIT; the error's
+ * `noMatchOnly` flag is set when every configured source was reachable but had
+ * no matching activity yet (worth retrying later).
  */
-async function fetchOriginalFit(athleteId, activity, preferredSources = SOURCES) {
-  const errors = [];
-  for (const src of preferredSources) {
+async function fetchOriginalFit(athleteId, activity, preferredSources = SOURCES, { providers = PROVIDERS } = {}) {
+  const attempts = [];
+  let failed = false;
+  for (const src of orderSources(preferredSources, activity)) {
+    const provider = providers[src];
+    if (!provider) { attempts.push(`${src}: unknown source`); continue; }
+    if (!provider.isConfigured(athleteId)) continue;
     try {
-      if (src === 'garmin') {
-        const client = await garmin.getClient(athleteId);
-        if (!client) { errors.push('garmin: not configured'); continue; }
-        const gActivity = await garmin.findActivityByStartTime(client, activity.start_date);
-        if (!gActivity) { errors.push('garmin: no matching activity by start time'); continue; }
-        const out = await garmin.downloadOriginalFit(client, gActivity);
-        return { source: 'garmin', ...out };
-      }
-      if (src === 'strava_web') {
-        const out = await stravaWeb.downloadOriginalFit(athleteId, activity.id);
-        return { source: 'strava_web', ...out };
-      }
+      const out = await provider.fetch(athleteId, activity);
+      if (out) return { source: src, ...out };
+      attempts.push(`${src}: no matching activity by start time`);
     } catch (e) {
-      errors.push(`${src}: ${e.message}`);
+      failed = true;
+      attempts.push(`${src}: ${e.message}`);
     }
   }
-  const err = new Error(`Could not fetch original FIT. Tried: ${errors.join(' | ')}`);
-  err.attempts = errors;
+  const err = new Error(attempts.length
+    ? `Could not fetch original FIT. Tried: ${attempts.join(' | ')}`
+    : 'Could not fetch original FIT: no original activity file source is configured.');
+  err.attempts = attempts;
+  err.noMatchOnly = attempts.length > 0 && !failed;
   throw err;
 }
 
@@ -41,7 +106,7 @@ async function fetchOriginalFit(athleteId, activity, preferredSources = SOURCES)
  * Returns a result object describing what happened. Logs to processed table.
  */
 async function processActivity(athleteId, activity, options = {}) {
-  const { dryRun = false, sources = SOURCES, force = false } = options;
+  const { dryRun = false, sources = SOURCES, force = false, retryNoMatch = false, providers } = options;
   const result = {
     activityId: activity.id,
     activityName: activity.name,
@@ -62,8 +127,14 @@ async function processActivity(athleteId, activity, options = {}) {
 
   let fetched;
   try {
-    fetched = await fetchOriginalFit(athleteId, activity, sources);
+    fetched = await fetchOriginalFit(athleteId, activity, sources, providers ? { providers } : undefined);
   } catch (e) {
+    // The device may not have synced to its own cloud yet; let the caller retry before logging a failure.
+    if (retryNoMatch && e.noMatchOnly) {
+      const retry = new Error(`${e.message} (will retry)`);
+      retry.retryable = true;
+      throw retry;
+    }
     result.status = 'no_fit';
     result.message = e.message;
     logProcessed(athleteId, activity.id, null, [], null, 'no_fit', e.message);
@@ -137,4 +208,4 @@ async function syncRecent(athleteId, { limit = 10, dryRun = false, sources = SOU
   return results;
 }
 
-module.exports = { processActivity, syncRecent, fetchOriginalFit };
+module.exports = { SOURCES, processActivity, syncRecent, fetchOriginalFit, orderSources };

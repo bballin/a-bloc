@@ -236,13 +236,42 @@
             </div>
             <div>
               <h3>Wahoo</h3>
-              <p class="muted">Wahoo original activity file import is coming soon.</p>
+              <p class="muted">For rides recorded on a Wahoo ELEMNT or the Wahoo app. Connects through Wahoo's official authorization page; access tokens are stored encrypted and refreshed automatically.</p>
+              <div class="row">
+                <button class="btn primary" type="button" id="wahooConnect">Connect Wahoo</button>
+                <button class="btn" type="button" id="wahooTest">Test connection</button>
+                <button class="btn danger" type="button" id="wahooDisconnect">Disconnect</button>
+                <span id="wahooStatus" class="muted" role="status"></span>
+              </div>
             </div>
             <div>
               <h3>Hammerhead</h3>
-              <p class="muted">Hammerhead original activity file import is coming soon.</p>
+              <p class="muted">For rides recorded on a Hammerhead Karoo. Uses your Hammerhead dashboard login; email/password are stored encrypted and access tokens are cached and refreshed automatically.</p>
+              <form id="hammerheadForm" class="stack" data-provider="hammerhead" autocomplete="off">
+                <input type="email" name="username" placeholder="Hammerhead email" autocomplete="off" />
+                <input type="password" name="password" placeholder="Hammerhead password" autocomplete="new-password" />
+                <div class="row">
+                  <button class="btn primary" type="submit">Save</button>
+                  <button class="btn" type="button" data-test-provider="hammerhead">Test login</button>
+                  <span id="hammerheadStatus" class="muted" role="status"></span>
+                </div>
+              </form>
+            </div>
+            <div>
+              <h3>COROS</h3>
+              <p class="muted">For activities recorded on a COROS watch or bike computer. Uses your COROS Training Hub login; email/password are stored encrypted and the access token is cached.</p>
+              <form id="corosForm" class="stack" data-provider="coros" autocomplete="off">
+                <input type="email" name="username" placeholder="COROS email" autocomplete="off" />
+                <input type="password" name="password" placeholder="COROS password" autocomplete="new-password" />
+                <div class="row">
+                  <button class="btn primary" type="submit">Save</button>
+                  <button class="btn" type="button" data-test-provider="coros">Test login</button>
+                  <span id="corosStatus" class="muted" role="status"></span>
+                </div>
+              </form>
             </div>
           </div>
+          <p class="muted">When a new activity arrives, each connected source is checked for an activity with the same start time, starting with the one that matches the Strava activity's recording device.</p>
         </div>
       </section>
     </section>

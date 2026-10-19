@@ -8,14 +8,17 @@ piece of Strava gear and have the app tag matching rides.
 
 Strava's public API does not expose the original FIT file for an activity or
 the individual sensors recorded in it. A Bloc gets the FIT file from
-Garmin Connect or a Strava web session, parses it locally, then matches the
-discovered sensor keys to your gear mappings.
+Garmin Connect, Wahoo, Hammerhead, COROS or a Strava web session, parses it
+locally, then matches the discovered sensor keys to your gear mappings.
 
 You can process activities in four ways:
 
 - **Webhook:** Strava notifies the app about new activities. The app records
-  the event in its database, acknowledges it, and a background worker fetches
-  and parses the FIT file, then applies a matching gear mapping. Failed jobs
+  the event in its database, acknowledges it, and a background worker checks
+  each connected original-file source for an activity with the same start
+  time, parses the FIT file, then applies a matching gear mapping. If every
+  connected source answers but none has the activity yet (for example, the
+  device has not finished syncing), the job is retried. Failed jobs
   are retried up to three times, and jobs interrupted by a restart resume on
   the next start.
 - **Manual sync or Tag button:** Run the same matching process on demand.
@@ -29,8 +32,10 @@ You can process activities in four ways:
 - `src/store/` — table access; together with `settings.js`,
   `session-store.js` and `webhook-queue.js`, the only modules that contain SQL.
 - `src/webhook-queue.js` — durable queue for Strava webhook work.
-- `src/strava.js`, `src/garmin.js`, `src/strava-web.js`, `src/sync.js` —
-  external services and the FIT-to-gear pipeline.
+- `src/strava.js`, `src/garmin.js`, `src/wahoo.js`, `src/hammerhead.js`,
+  `src/coros.js`, `src/strava-web.js`, `src/sync.js` — external services and
+  the FIT-to-gear pipeline; `src/original-file.js` holds helpers shared by the
+  original-file sources.
 - `public/` — static front end; `common.js` holds the shared `api()` and
   `escapeHtml()` helpers.
 - `test/` — `node:test` suites (`npm test`).
@@ -139,23 +144,45 @@ authorize it.
 
 ## Getting original FIT files
 
-The app tries these unofficial sources in order:
+Connect one or more sources under **Configure → Original Activity File**. For
+each Strava activity, the app checks every connected source for an activity
+that started within five minutes of the Strava start time and uses the first
+FIT file it finds. The source that matches the Strava activity's recording
+device (its `device_name`, such as "Wahoo ELEMNT BOLT" or "Hammerhead Karoo")
+is checked first; the others follow in this order:
 
 1. **Garmin Connect** uses the
    [`garmin-connect`](https://www.npmjs.com/package/garmin-connect) library.
-   Provide your Garmin email and password in the app's **Auto-fetch sources**
-   settings. Credentials and cached OAuth tokens are encrypted at rest using a
-   key derived from `SESSION_SECRET`. If Garmin rate-limits a login, new Garmin
-   logins are paused globally until the cooldown expires; existing cached
-   OAuth tokens remain usable.
-2. **Strava web session** downloads
+   Provide your Garmin email and password. If Garmin rate-limits a login, new
+   Garmin logins are paused globally until the cooldown expires; existing
+   cached OAuth tokens remain usable.
+2. **Wahoo** uses Wahoo's official
+   [Cloud API](https://cloud-api.wahooligan.com/). The server operator
+   registers an app at <https://developers.wahooligan.com>, sets its redirect
+   URI to `{APP_BASE_URL}/auth/wahoo/callback`, and sets `WAHOO_CLIENT_ID` and
+   `WAHOO_CLIENT_SECRET`. Each user then chooses **Connect Wahoo** and
+   approves access (`user_read workouts_read offline_data`). Tokens are
+   refreshed only when needed, because Wahoo limits unrevoked tokens per
+   user. Wahoo sandbox apps are limited to 25 requests per 5 minutes and 250
+   per day; each lookup uses one or two requests. **Disconnect** revokes the
+   app's access at Wahoo.
+3. **Hammerhead** uses your Hammerhead dashboard email and password (the same
+   login as <https://dashboard.hammerhead.io>). Access and refresh tokens are
+   cached and renewed automatically.
+4. **COROS** uses your COROS Training Hub email and password (the same login
+   as <https://t.coros.com>). COROS only offers its official API to approved
+   partners, so this uses the Training Hub web API. The account's region is
+   detected at login.
+5. **Strava web session** downloads
    `https://www.strava.com/activities/{id}/export_original` using a logged-in
    session cookie. Email/password login is also available, but Strava's
    Cloudflare and CAPTCHA protections may block it.
 
-If a source cannot provide a FIT file, the app tries the next source. If none
-succeed, the activity is recorded as `no_fit` and skipped; you can still
-upload its FIT file manually.
+Credentials and cached tokens are encrypted at rest using a key derived from
+`SESSION_SECRET`. Sources that are not configured are skipped. If a source
+cannot provide a FIT file, the app tries the next one. If none succeed, the
+activity is recorded as `no_fit` and skipped; you can still upload its FIT file
+manually.
 
 To configure a Strava web session:
 
@@ -238,9 +265,9 @@ one.
 Signed-out visitors can browse the tabs, but every control is disabled until
 they connect a Strava account.
 
-Garmin Connect and Strava web downloads use unofficial interfaces and can
-break when those services change. Garmin MFA is not supported by the
-underlying library. Credentials and tokens are encrypted at rest, but anyone
+Garmin Connect, Hammerhead, COROS and Strava web downloads use unofficial
+interfaces and can break when those services change. Garmin MFA is not
+supported by the underlying library. Credentials and tokens are encrypted at rest, but anyone
 with code execution and access to `SESSION_SECRET` can decrypt them. Use a
 unique, private deployment and protect access to its variables and persistent
 volume.
