@@ -50,14 +50,13 @@
   </main>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="/units.js"></script>
+  <script src="/common.js"></script>
   <script>
     const segmentDetails = new Map();
 
     async function loadMap() {
       const status = document.getElementById('mapStatus');
-      const response = await fetch('/api/segments/local', { credentials: 'same-origin' });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'Could not load local segments.');
+      const body = await api('/api/segments/local');
 
       const map = L.map('segmentMap').setView([20, 0], 2);
       const markers = new Map();
@@ -103,12 +102,7 @@
         const deleteStatus = popup.querySelector('.segment-delete-status');
         deleteStatus.textContent = 'Deleting…';
         try {
-          const response = await fetch(`/api/segments/local/${encodeURIComponent(segmentId)}`, {
-            method: 'DELETE',
-            credentials: 'same-origin',
-          }, true);
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || 'Could not delete local segment.');
+          await api(`/api/segments/local/${encodeURIComponent(segmentId)}`, { method: 'DELETE' });
           markers.get(segmentId).remove();
           segmentDetails.delete(segmentId);
           const remaining = [...markers.values()].filter(item => map.hasLayer(item)).length;
@@ -128,12 +122,8 @@
 
     function loadSegmentDetails(segmentId) {
       if (!segmentDetails.has(segmentId)) {
-        const request = fetch(`/api/segments/local/${encodeURIComponent(segmentId)}/details`, { credentials: 'same-origin' })
-          .then(async response => {
-            const body = await response.json();
-            if (!response.ok) throw new Error(body.error || 'Could not load segment details.');
-            return body.details;
-          });
+        const request = api(`/api/segments/local/${encodeURIComponent(segmentId)}/details`)
+          .then(body => body.details);
         segmentDetails.set(segmentId, request);
         request.catch(() => segmentDetails.delete(segmentId));
       }
@@ -215,12 +205,6 @@
       return value != null && value !== '' && Number.isInteger(Number(value)) && Number(value) >= 0 && Number(value) < categories.length
         ? categories[Number(value)] === 'Uncategorized' ? '' : categories[Number(value)]
         : '';
-    }
-
-    function escapeHtml(value) {
-      return String(value == null ? '' : value)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     loadMap().catch(error => {

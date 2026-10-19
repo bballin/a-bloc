@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug Strava Extened",
+      "name": "Debug A Bloc",
       "type": "node",
       "request": "launch",
       "program": "${workspaceFolder}/src/server.js",

@@ -1,21 +1,39 @@
-# Strava Extended
+# A Bloc
 
-Strava Extended assigns gear to your activities based on the sensors recorded in
+A Bloc assigns gear to your activities based on the sensors recorded in
 the original FIT file. For example, you can map a power meter's ANT+ ID to a
 piece of Strava gear and have the app tag matching rides.
 
 ## How it works
 
 Strava's public API does not expose the original FIT file for an activity or
-the individual sensors recorded in it. Strava Extended gets the FIT file from
+the individual sensors recorded in it. A Bloc gets the FIT file from
 Garmin Connect or a Strava web session, parses it locally, then matches the
 discovered sensor keys to your gear mappings.
 
 You can process activities in four ways:
 
-- **Webhook:** Strava notifies the app about new activities. The app fetches
-  and parses the FIT file, then applies a matching gear mapping.
+- **Webhook:** Strava notifies the app about new activities. The app records
+  the event in its database, acknowledges it, and a background worker fetches
+  and parses the FIT file, then applies a matching gear mapping. Failed jobs
+  are retried up to three times, and jobs interrupted by a restart resume on
+  the next start.
 - **Manual sync or Tag button:** Run the same matching process on demand.
+
+## Project layout
+
+- `src/server.js` — process startup, webhook worker, graceful shutdown.
+- `src/app.js` — Express app; routes live in `src/routes/` by feature.
+- `src/config.js` — the only place environment variables are read and validated.
+- `src/db.js`, `src/migrations.js` — SQLite connection and versioned schema.
+- `src/store/` — table access; together with `settings.js`,
+  `session-store.js` and `webhook-queue.js`, the only modules that contain SQL.
+- `src/webhook-queue.js` — durable queue for Strava webhook work.
+- `src/strava.js`, `src/garmin.js`, `src/strava-web.js`, `src/sync.js` —
+  external services and the FIT-to-gear pipeline.
+- `public/` — static front end; `common.js` holds the shared `api()` and
+  `escapeHtml()` helpers.
+- `test/` — `node:test` suites (`npm test`).
 
 ## Run locally
 
@@ -26,7 +44,7 @@ You can process activities in four ways:
 2. Copy `.env.example` to `.env`. Set `STRAVA_CLIENT_ID`,
    `STRAVA_CLIENT_SECRET`, and a long random `SESSION_SECRET` (at least 16
    characters). Set a separate random `STRAVA_WEBHOOK_VERIFY_TOKEN`.
-3. Install dependencies and start the app:
+3. Install dependencies (Node.js 20 or newer) and start the app:
 
    ```sh
    npm install
@@ -36,7 +54,12 @@ You can process activities in four ways:
 4. Open <http://localhost:3000> and choose **Connect with Strava**.
 
 The app listens on `0.0.0.0` and uses the `PORT` environment variable when
-provided (default `3000`).
+provided (default `3000`). Without `SESSION_SECRET` the app starts with an
+insecure development secret and cannot store credentials; in production
+(Railway or `NODE_ENV=production`) it refuses to start.
+
+Run the tests with `npm test` (Node's built-in test runner; each test file uses
+a throwaway database).
 
 ## Deploy to Railway
 
@@ -48,12 +71,12 @@ provided (default `3000`).
    bash start.sh
    ```
 
-   The script starts Node directly so Railway's termination signal reaches the
-   app process. Railway's Node builder detects `package.json` and installs its
-   dependencies during the build. If your service has a custom build setup that
-   skips dependency installation, set its **Build Command** to
-   `npm ci --omit=dev`. You can also set the **Start Command** to
-   `node src/server.js` instead of using the script.
+   The script only starts Node (with `exec`, so Railway's termination signal
+   reaches the app process); it does not install dependencies. Railway's Node
+   builder detects `package.json` and installs them during the build. If your
+   service has a custom build setup that skips dependency installation, set its
+   **Build Command** to `npm ci --omit=dev`. You can also set the **Start
+   Command** to `node src/server.js` instead of using the script.
 3. Add the production values from `.env.railway.example` under the Railway
    service's **Variables**. Railway does not automatically load that example
    file; it documents the values to configure in the dashboard. Use the
@@ -70,11 +93,12 @@ provided (default `3000`).
    - `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` — set to `15`. Railway sends
      `SIGTERM` to the old deployment and, by default, waits **0 seconds**
      before sending `SIGKILL`, which kills the app before it can finish
-     in-flight requests and webhook jobs and close the database. With a drain
-     window, the app stops accepting work, waits for pending requests and
-     webhook processing, closes SQLite, and exits; it gives itself the drain
-     window minus 2 seconds. The app logs a startup warning on Railway when
-     this variable is missing.
+     in-flight requests and close the database. With a drain window, the app
+     stops accepting connections, waits for pending requests and the running
+     webhook job, closes SQLite, and exits; it gives itself the drain window
+     minus 2 seconds. A webhook job still running at the deadline stays in the
+     database and is retried by the next deployment. The app logs a startup
+     warning on Railway when this variable is missing.
    Do not set `PORT` manually; Railway provides it at runtime.
 4. In your Strava API application's settings, set **Authorization Callback
    Domain** to the hostname from `APP_BASE_URL`, without `https://` or a path.
@@ -165,16 +189,18 @@ as JSON:
 
 ```json
 {
-  "format": "strava-extened-segment-ids",
+  "format": "a-bloc-segment-ids",
   "version": 1,
   "exportedAt": "2026-09-06T12:00:00.000Z",
   "segmentIds": [123456, 789012]
 }
 ```
 
-Imports accept this object or a simple array such as `[123456, 789012]`.
-Imported IDs are checked against Strava and shown unchecked; only selected
-segments are added to your starred list.
+Imports accept this object (including files exported by older versions with
+the `strava-extened-segment-ids` format) or a simple array such as
+`[123456, 789012]`. Imported IDs are checked against Strava and shown
+unchecked; only selected segments are added to your starred list or local
+segment database.
 
 Strava has no bulk star/unstar endpoint, so mutations run sequentially, one
 request per segment. The app waits one second between requests by default and
@@ -203,6 +229,14 @@ hosting the app. On Railway, mount a volume at `/app/data`. General segment
 metadata is cached globally, so when one user fetches a segment, other users
 can reuse that cached information; starred segments and segment-count settings
 remain per-user.
+
+The schema is versioned with `PRAGMA user_version`. Pending migrations in
+`src/migrations.js` run automatically at startup, each in its own transaction.
+To change the schema, append a new migration rather than editing an existing
+one.
+
+Signed-out visitors can browse the tabs, but every control is disabled until
+they connect a Strava account.
 
 Garmin Connect and Strava web downloads use unofficial interfaces and can
 break when those services change. Garmin MFA is not supported by the

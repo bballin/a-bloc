@@ -1,5 +1,4 @@
-const fs = require('fs');
-const db = require('./db');
+const processed = require('./store/processed');
 const strava = require('./strava');
 const stravaWeb = require('./strava-web');
 const garmin = require('./garmin');
@@ -76,15 +75,13 @@ async function processActivity(athleteId, activity, options = {}) {
   try {
     parsed = await parseFit(fetched.fitPath);
   } catch (e) {
-    fetched.cleanup();
     result.status = 'parse_error';
     result.message = `Parse failed: ${e.message}`;
     logProcessed(athleteId, activity.id, null, [], null, 'parse_error', result.message);
     return result;
   } finally {
-    // Keep file until parse done, then clean up
+    fetched.cleanup();
   }
-  fetched.cleanup();
 
   result.sensors = parsed.sensors;
   const match = chooseGear(athleteId, parsed.sensors);
@@ -118,20 +115,7 @@ async function processActivity(athleteId, activity, options = {}) {
 }
 
 function logProcessed(athleteId, activityId, fitFilename, sensors, match, status, message) {
-  db.prepare(`
-    INSERT INTO processed (athlete_id, activity_id, fit_filename, sensors_json, matched_gear_id, matched_gear_name, status, message, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    athleteId,
-    activityId ? String(activityId) : null,
-    fitFilename || null,
-    JSON.stringify(sensors || []),
-    match ? match.gear_id : null,
-    match ? match.gear_name : null,
-    status,
-    message || '',
-    Math.floor(Date.now() / 1000)
-  );
+  processed.record({ athleteId, activityId, fitFilename, sensors, match, status, message });
 }
 
 async function syncRecent(athleteId, { limit = 10, dryRun = false, sources = SOURCES, force = false } = {}) {

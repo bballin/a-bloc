@@ -1,5 +1,5 @@
 @echo off
-title Strava Extened
+title A Bloc
 cd /d "%~dp0"
 node src/server.js
 pause

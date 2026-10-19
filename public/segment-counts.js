@@ -1,13 +1,6 @@
 (() => {
 const $ = selector => document.querySelector(selector);
 
-async function api(path, options) {
-  const response = await fetch(path, options);
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `Request failed (${response.status})`);
-  return body;
-}
-
 function renderSegmentDetails(segment) {
   const details = document.createElement('div');
   details.className = 'segment-details';

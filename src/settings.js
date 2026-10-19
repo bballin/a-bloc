@@ -1,9 +1,7 @@
 const db = require('./db');
 const { encrypt, decrypt } = require('./crypto');
 
-const GLOBAL_SETTINGS_ATHLETE_ID = 0;
-const GARMIN_LOGIN_DISABLED_KEY = 'garmin_login_global_retry_after';
-const INITIAL_GARMIN_LOGIN_DISABLED_UNTIL = Date.parse('2026-10-20T13:59:28-07:00');
+const GARMIN_LOGIN_DISABLED_KEY = 'garmin_login_disabled_until';
 
 const ENCRYPTED_KEYS = new Set([
   'garmin_password',
@@ -13,30 +11,31 @@ const ENCRYPTED_KEYS = new Set([
   'strava_session_cookie',
 ]);
 
-if (INITIAL_GARMIN_LOGIN_DISABLED_UNTIL > Date.now()) {
-  db.prepare(`
-    INSERT OR IGNORE INTO settings (athlete_id, key, value, updated_at)
-    VALUES (?, ?, ?, ?)
-  `).run(
-    GLOBAL_SETTINGS_ATHLETE_ID,
-    GARMIN_LOGIN_DISABLED_KEY,
-    String(INITIAL_GARMIN_LOGIN_DISABLED_UNTIL),
-    Math.floor(Date.now() / 1000)
-  );
-}
+const nowSeconds = () => Math.floor(Date.now() / 1000);
+
+const setStatement = db.prepare(`
+  INSERT INTO settings (athlete_id, key, value, updated_at) VALUES (?, ?, ?, ?)
+  ON CONFLICT(athlete_id, key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
+`);
+const getStatement = db.prepare('SELECT value FROM settings WHERE athlete_id = ? AND key = ?');
+const removeStatement = db.prepare('DELETE FROM settings WHERE athlete_id = ? AND key = ?');
+const keysStatement = db.prepare('SELECT key FROM settings WHERE athlete_id = ?');
+const getAppStatement = db.prepare('SELECT value FROM app_settings WHERE key = ?');
+const extendAppTimestampStatement = db.prepare(`
+  INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
+  ON CONFLICT(key) DO UPDATE SET
+    value=MAX(CAST(app_settings.value AS INTEGER), CAST(excluded.value AS INTEGER)),
+    updated_at=excluded.updated_at
+`);
 
 function set(athleteId, key, value) {
   const stored = ENCRYPTED_KEYS.has(key) && value != null ? encrypt(value) : value;
-  db.prepare(`
-    INSERT INTO settings (athlete_id, key, value, updated_at) VALUES (?, ?, ?, ?)
-    ON CONFLICT(athlete_id, key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
-  `).run(athleteId, key, stored, Math.floor(Date.now() / 1000));
+  setStatement.run(athleteId, key, stored, nowSeconds());
 }
 
 function get(athleteId, key) {
-  const row = db.prepare('SELECT value FROM settings WHERE athlete_id = ? AND key = ?').get(athleteId, key);
-  if (!row) return null;
-  if (row.value == null) return null;
+  const row = getStatement.get(athleteId, key);
+  if (!row || row.value == null) return null;
   if (ENCRYPTED_KEYS.has(key)) {
     try { return decrypt(row.value); } catch { return null; }
   }
@@ -44,31 +43,23 @@ function get(athleteId, key) {
 }
 
 function remove(athleteId, key) {
-  db.prepare('DELETE FROM settings WHERE athlete_id = ? AND key = ?').run(athleteId, key);
+  removeStatement.run(athleteId, key);
 }
 
+// The Garmin login pause is app-wide: Garmin throttles by account/IP, not per Strava athlete.
 function getGarminLoginDisabledUntil() {
-  const disabledUntil = Number(get(GLOBAL_SETTINGS_ATHLETE_ID, GARMIN_LOGIN_DISABLED_KEY));
+  const row = getAppStatement.get(GARMIN_LOGIN_DISABLED_KEY);
+  const disabledUntil = Number(row && row.value);
   return Number.isSafeInteger(disabledUntil) && disabledUntil > Date.now() ? disabledUntil : null;
 }
 
+// Only ever extends an existing pause.
 function disableGarminLoginUntil(timestamp) {
-  db.prepare(`
-    INSERT INTO settings (athlete_id, key, value, updated_at) VALUES (?, ?, ?, ?)
-    ON CONFLICT(athlete_id, key) DO UPDATE SET
-      value=MAX(CAST(settings.value AS INTEGER), CAST(excluded.value AS INTEGER)),
-      updated_at=excluded.updated_at
-  `).run(
-    GLOBAL_SETTINGS_ATHLETE_ID,
-    GARMIN_LOGIN_DISABLED_KEY,
-    String(timestamp),
-    Math.floor(Date.now() / 1000)
-  );
+  extendAppTimestampStatement.run(GARMIN_LOGIN_DISABLED_KEY, String(timestamp), nowSeconds());
 }
 
 function summary(athleteId) {
-  const rows = db.prepare('SELECT key FROM settings WHERE athlete_id = ?').all(athleteId);
-  const keys = new Set(rows.map(r => r.key));
+  const keys = new Set(keysStatement.all(athleteId).map(r => r.key));
   return {
     garmin: {
       hasUsername: keys.has('garmin_username'),

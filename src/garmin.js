@@ -7,11 +7,30 @@ const settings = require('./settings');
 
 const LOGIN_RATE_LIMIT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
+class GarminLoginPausedError extends Error {
+  constructor(message, disabledUntil) {
+    super(message);
+    this.name = 'GarminLoginPausedError';
+    this.status = 429;
+    this.disabledUntil = disabledUntil;
+  }
+}
+
 function isRateLimited(error) {
-  return error && (
+  return !!error && (
     (error.response && error.response.status === 429) ||
     /\b429\b|rate.?limited/i.test(error.message || '')
   );
+}
+
+function assertLoginAllowed() {
+  const disabledUntil = settings.getGarminLoginDisabledUntil();
+  if (disabledUntil) {
+    throw new GarminLoginPausedError(
+      `Garmin access is temporarily disabled until ${new Date(disabledUntil).toLocaleString()}.`,
+      disabledUntil
+    );
+  }
 }
 
 /**
@@ -37,22 +56,17 @@ async function getClient(athleteId) {
     }
   }
   if (!restored) {
-    const globalRetryAfter = settings.getGarminLoginDisabledUntil();
-    if (globalRetryAfter) {
-      throw new Error(`Garmin access is temporarily disabled until ${new Date(globalRetryAfter).toLocaleString()}.`);
-    }
-    const retryAfter = Number(settings.get(athleteId, 'garmin_login_retry_after'));
-    if (retryAfter > Date.now()) {
-      throw new Error(`Garmin login is paused after a rate-limit response. Try again after ${new Date(retryAfter).toLocaleString()}.`);
-    }
+    assertLoginAllowed();
     try {
       await client.login();
     } catch (error) {
       if (!isRateLimited(error)) throw error;
-      const retryAfter = Date.now() + LOGIN_RATE_LIMIT_COOLDOWN_MS;
-      settings.set(athleteId, 'garmin_login_retry_after', String(retryAfter));
-      settings.disableGarminLoginUntil(retryAfter);
-      throw new Error(`Garmin rate-limited login attempts. Further login attempts are paused until ${new Date(retryAfter).toLocaleString()}.`);
+      const disabledUntil = Date.now() + LOGIN_RATE_LIMIT_COOLDOWN_MS;
+      settings.disableGarminLoginUntil(disabledUntil);
+      throw new GarminLoginPausedError(
+        `Garmin rate-limited login attempts. Further login attempts are paused until ${new Date(disabledUntil).toLocaleString()}.`,
+        disabledUntil
+      );
     }
 
     const o1 = client.client && client.client.oauth1Token;
@@ -125,4 +139,11 @@ function cleanupDir(dir) {
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
 }
 
-module.exports = { getClient, findActivityByStartTime, downloadOriginalFit };
+module.exports = {
+  getClient,
+  assertLoginAllowed,
+  isRateLimited,
+  GarminLoginPausedError,
+  findActivityByStartTime,
+  downloadOriginalFit,
+};

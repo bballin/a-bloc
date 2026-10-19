@@ -1,5 +1,5 @@
-const fetch = require('node-fetch');
-const db = require('./db');
+const config = require('./config');
+const athletes = require('./store/athletes');
 
 const STRAVA_OAUTH_TOKEN = 'https://www.strava.com/oauth/token';
 const STRAVA_API = 'https://www.strava.com/api/v3';
@@ -11,8 +11,8 @@ async function exchangeCodeForToken(code) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      client_id: process.env.STRAVA_CLIENT_ID,
-      client_secret: process.env.STRAVA_CLIENT_SECRET,
+      client_id: config.strava.clientId,
+      client_secret: config.strava.clientSecret,
       code,
       grant_type: 'authorization_code',
     }),
@@ -26,8 +26,8 @@ async function refreshToken(refresh_token) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      client_id: process.env.STRAVA_CLIENT_ID,
-      client_secret: process.env.STRAVA_CLIENT_SECRET,
+      client_id: config.strava.clientId,
+      client_secret: config.strava.clientSecret,
       refresh_token,
       grant_type: 'refresh_token',
     }),
@@ -37,29 +37,11 @@ async function refreshToken(refresh_token) {
 }
 
 function saveAthlete(athlete, tokens) {
-  db.prepare(`
-    INSERT INTO athletes (id, firstname, lastname, access_token, refresh_token, expires_at, updated_at)
-    VALUES (@id, @firstname, @lastname, @access_token, @refresh_token, @expires_at, @updated_at)
-    ON CONFLICT(id) DO UPDATE SET
-      firstname=excluded.firstname,
-      lastname=excluded.lastname,
-      access_token=excluded.access_token,
-      refresh_token=excluded.refresh_token,
-      expires_at=excluded.expires_at,
-      updated_at=excluded.updated_at
-  `).run({
-    id: athlete.id,
-    firstname: athlete.firstname || '',
-    lastname: athlete.lastname || '',
-    access_token: tokens.access_token,
-    refresh_token: tokens.refresh_token,
-    expires_at: tokens.expires_at,
-    updated_at: now(),
-  });
+  athletes.save(athlete, tokens);
 }
 
 function getAthlete(id) {
-  return db.prepare('SELECT * FROM athletes WHERE id = ?').get(id);
+  return athletes.get(id);
 }
 
 async function getValidAccessToken(athleteId) {
@@ -67,9 +49,7 @@ async function getValidAccessToken(athleteId) {
   if (!a) throw new Error('Athlete not found, re-authenticate.');
   if (a.expires_at - 60 > now()) return a.access_token;
   const refreshed = await refreshToken(a.refresh_token);
-  db.prepare(`
-    UPDATE athletes SET access_token=?, refresh_token=?, expires_at=?, updated_at=? WHERE id=?
-  `).run(refreshed.access_token, refreshed.refresh_token, refreshed.expires_at, now(), athleteId);
+  athletes.updateTokens(athleteId, refreshed);
   return refreshed.access_token;
 }
 
@@ -126,8 +106,8 @@ async function updateActivityDescription(athleteId, activityId, description) {
 
 async function listWebhookSubscriptions() {
   const params = new URLSearchParams({
-    client_id: process.env.STRAVA_CLIENT_ID || '',
-    client_secret: process.env.STRAVA_CLIENT_SECRET || '',
+    client_id: config.strava.clientId,
+    client_secret: config.strava.clientSecret,
   });
   const res = await fetch(`${STRAVA_API}/push_subscriptions?${params}`);
   if (!res.ok) throw new Error(`Failed to list webhook subscriptions: ${res.status} ${await res.text()}`);
@@ -139,8 +119,8 @@ async function createWebhookSubscription(callbackUrl, verifyToken) {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: process.env.STRAVA_CLIENT_ID || '',
-      client_secret: process.env.STRAVA_CLIENT_SECRET || '',
+      client_id: config.strava.clientId,
+      client_secret: config.strava.clientSecret,
       callback_url: callbackUrl,
       verify_token: verifyToken,
     }).toString(),
@@ -151,8 +131,8 @@ async function createWebhookSubscription(callbackUrl, verifyToken) {
 
 async function deleteWebhookSubscription(subscriptionId) {
   const params = new URLSearchParams({
-    client_id: process.env.STRAVA_CLIENT_ID || '',
-    client_secret: process.env.STRAVA_CLIENT_SECRET || '',
+    client_id: config.strava.clientId,
+    client_secret: config.strava.clientSecret,
   });
   const res = await fetch(`${STRAVA_API}/push_subscriptions/${encodeURIComponent(subscriptionId)}?${params}`, {
     method: 'DELETE',

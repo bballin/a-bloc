@@ -1,5 +1,5 @@
 {
-  "name": "strava-extened",
+  "name": "a-bloc",
   "version": "0.1.0",
   "private": true,
   "description": "Connect to Strava and auto-set equipment (gear) on activities based on sensors found in the original FIT file.",
@@ -7,10 +7,11 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "adm-zip": "^0.5.14",
@@ -20,8 +21,7 @@
     "express-session": "^1.18.0",
     "fit-file-parser": "^1.21.0",
     "garmin-connect": "^1.6.2",
-    "multer": "^1.4.5-lts.1",
-    "node-fetch": "^2.7.0",
+    "multer": "^2.4.0",
     "tough-cookie": "^4.1.4"
   }
 }

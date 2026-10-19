@@ -8,14 +8,7 @@ let activityPage = 0;
 let activitiesLoading = false;
 let garminLoginDisabledUntil = null;
 let garminPauseTimer = null;
-
-async function api(path, opts = {}) {
-  const res = await fetch(path, { credentials: 'same-origin', ...opts });
-  const ct = res.headers.get('content-type') || '';
-  const body = ct.includes('application/json') ? await res.json() : await res.text();
-  if (!res.ok) throw new Error(typeof body === 'string' ? body : (body.error || `HTTP ${res.status}`));
-  return body;
-}
+let signedIn = false;
 
 async function init() {
   document.querySelectorAll('[data-tab]').forEach(tab => {
@@ -25,17 +18,21 @@ async function init() {
   $('#garminTest').onclick = onTestGarmin;
   const requestedPanel = document.getElementById(window.location.hash.slice(1));
 
-  const [me] = await Promise.all([api('/api/me'), loadGarminLoginStatus()]);
+  const me = await api('/api/me');
+  loadGarminLoginStatus();
   if (!me.authenticated) {
     $('#loginSection').classList.remove('hidden');
     $('#mainSection').classList.remove('hidden');
+    disableSignedOutControls();
     switchTab(requestedPanel && requestedPanel.classList.contains('tab-panel')
       ? requestedPanel.id
       : 'gearPanel');
     return;
   }
   $('#mainSection').classList.remove('hidden');
-  $('#userBox').innerHTML = `Signed in as <strong>${me.athlete.firstname} ${me.athlete.lastname}</strong> · <button class="btn" id="logoutBtn">Sign out</button>`;
+  signedIn = true;
+  updateGarminPauseWarning(garminLoginDisabledUntil);
+  $('#userBox').innerHTML = `Signed in as <strong>${escapeHtml(me.athlete.firstname)} ${escapeHtml(me.athlete.lastname)}</strong> · <button class="btn" id="logoutBtn">Sign out</button>`;
   $('#logoutBtn').onclick = async () => {
     await api('/auth/logout', { method: 'POST' });
     location.reload();
@@ -84,6 +81,13 @@ async function init() {
     };
   });
   await loadActivities(true);
+}
+
+// Signed-out visitors can browse the tabs, but every action needs a Strava login.
+function disableSignedOutControls() {
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.querySelectorAll('button, input, select, textarea').forEach(control => { control.disabled = true; });
+  });
 }
 
 function switchTab(panelId) {
@@ -416,7 +420,7 @@ function updateGarminPauseWarning(disabledUntil) {
   warning.textContent = disabled
     ? `Garmin access is temporarily disabled until ${new Date(disabledUntil).toLocaleString()}.`
     : '';
-  $('#garminTest').disabled = disabled;
+  $('#garminTest').disabled = disabled || !signedIn;
   clearTimeout(garminPauseTimer);
   // setTimeout overflows above ~24.8 days; re-check on the next page load instead.
   const remainingMs = disabled ? disabledUntil - Date.now() : 0;
@@ -464,9 +468,7 @@ async function onTestGarmin() {
   } catch (e) {
     status.textContent = `Error: ${e.message}`;
     status.className = 'status-error';
-    if (/rate.?limited|temporarily disabled|\b429\b/i.test(e.message)) {
-      await loadGarminLoginStatus();
-    }
+    if (e.status === 429) await loadGarminLoginStatus();
   } finally {
     button.disabled = isGarminLoginPaused();
   }
@@ -684,12 +686,6 @@ async function onSaveMapping(ev) {
   ev.target.reset();
   document.querySelector('input[name="priority"]').value = '0';
   loadMappings();
-}
-
-function escapeHtml(s) {
-  return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 init().catch(e => {

@@ -1,14 +1,14 @@
 const crypto = require('crypto');
+const config = require('./config');
 
 // AES-256-GCM with key derived from SESSION_SECRET via scrypt.
 // Format on disk: base64( salt(16) || iv(12) || tag(16) || ciphertext )
 
 function getSecret() {
-  const s = process.env.SESSION_SECRET;
-  if (!s || s.length < 16) {
+  if (!config.credentialsSecret) {
     throw new Error('SESSION_SECRET must be set to a long random string (>=16 chars) before storing credentials.');
   }
-  return s;
+  return config.credentialsSecret;
 }
 
 function deriveKey(secret, salt) {

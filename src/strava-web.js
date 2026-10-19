@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const fetch = require('node-fetch');
 const { CookieJar } = require('tough-cookie');
 const AdmZip = require('adm-zip');
 const settings = require('./settings');
@@ -82,7 +81,7 @@ async function fetchWithJar(jar, url, options = {}) {
   };
   if (cookieHeader) headers['Cookie'] = cookieHeader;
   const res = await fetch(url, { ...options, headers });
-  const setCookies = res.headers.raw()['set-cookie'] || [];
+  const setCookies = res.headers.getSetCookie();
   for (const sc of setCookies) {
     try { await jar.setCookie(sc, url); } catch { /* ignore */ }
   }

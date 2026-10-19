@@ -88,4 +88,4 @@ function extractSensors(data) {
   return result;
 }
 
-module.exports = { parseFit };
+module.exports = { parseFit, extractSensors };
