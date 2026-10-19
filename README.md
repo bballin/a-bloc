@@ -113,7 +113,9 @@ The app tries these unofficial sources in order:
    [`garmin-connect`](https://www.npmjs.com/package/garmin-connect) library.
    Provide your Garmin email and password in the app's **Auto-fetch sources**
    settings. Credentials and cached OAuth tokens are encrypted at rest using a
-   key derived from `SESSION_SECRET`.
+   key derived from `SESSION_SECRET`. If Garmin rate-limits a login, new Garmin
+   logins are paused globally until the cooldown expires; existing cached
+   OAuth tokens remain usable.
 2. **Strava web session** downloads
    `https://www.strava.com/activities/{id}/export_original` using a logged-in
    session cookie. Email/password login is also available, but Strava's

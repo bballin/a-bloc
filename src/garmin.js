@@ -37,6 +37,10 @@ async function getClient(athleteId) {
     }
   }
   if (!restored) {
+    const globalRetryAfter = settings.getGarminLoginDisabledUntil();
+    if (globalRetryAfter) {
+      throw new Error(`Garmin access is temporarily disabled until ${new Date(globalRetryAfter).toLocaleString()}.`);
+    }
     const retryAfter = Number(settings.get(athleteId, 'garmin_login_retry_after'));
     if (retryAfter > Date.now()) {
       throw new Error(`Garmin login is paused after a rate-limit response. Try again after ${new Date(retryAfter).toLocaleString()}.`);
@@ -47,6 +51,7 @@ async function getClient(athleteId) {
       if (!isRateLimited(error)) throw error;
       const retryAfter = Date.now() + LOGIN_RATE_LIMIT_COOLDOWN_MS;
       settings.set(athleteId, 'garmin_login_retry_after', String(retryAfter));
+      settings.disableGarminLoginUntil(retryAfter);
       throw new Error(`Garmin rate-limited login attempts. Further login attempts are paused until ${new Date(retryAfter).toLocaleString()}.`);
     }
 
