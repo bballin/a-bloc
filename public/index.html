@@ -186,6 +186,31 @@
         </div>
 
         <div class="card">
+          <h2>Description Text</h2>
+          <p>Customise the text added to the Strava description for each tracked segment completed in an activity. Click a variable to insert it; values Strava does not provide are left blank.</p>
+          <form id="templateForm" class="stack" autocomplete="off">
+            <div class="template-editor">
+              <div>
+                <h3><label for="templateInput">Text for each segment</label></h3>
+                <textarea id="templateInput" rows="4" maxlength="1000" spellcheck="false"></textarea>
+                <p id="templateError" class="status-error hidden" role="alert"></p>
+              </div>
+              <div>
+                <h3>Preview</h3>
+                <pre id="templatePreview" class="template-preview" aria-live="polite"></pre>
+                <p id="templatePreviewNote" class="muted"></p>
+              </div>
+            </div>
+            <div id="templateVariables" class="template-variables"></div>
+            <div class="row">
+              <button class="btn primary" type="submit">Save text</button>
+              <button class="btn" id="resetTemplate" type="button">Reset to default</button>
+              <span id="templateStatus" class="muted" role="status"></span>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
           <div class="section-heading">
             <div>
               <h2>Recent Webhook Activity</h2>
@@ -289,6 +314,7 @@
   <script src="/units.js"></script>
   <script src="/common.js"></script>
   <script src="/app.js"></script>
+  <script src="/segment-template.js"></script>
   <script src="/segment-counts.js"></script>
 </body>
 </html>
