@@ -150,7 +150,7 @@ function renderSegmentDetails(segment) {
 function renderInputs(segments) {
   const container = $('#segmentInputs');
   container.replaceChildren();
-  for (let index = 0; index < 5; index += 1) {
+  for (let index = 0; index < 10; index += 1) {
     const segment = segments[index];
     const row = document.createElement('div');
     row.className = 'segment-id-row';

@@ -241,7 +241,7 @@ available. Set `SEGMENT_MUTATION_DELAY_MS` to increase the delay; values below
 
 ## Segment completion counts
 
-Open **Segment Counts** and enter up to five Strava segment IDs. When a new
+Open **Segment Counts** and enter up to ten Strava segment IDs. When a new
 activity webhook includes one of those segments, the app adds or replaces a
 completion-count block in the Strava activity description. Existing
 description text is preserved, and webhook retries do not duplicate the

@@ -174,3 +174,29 @@ test('signed-in routes: FIT uploads are parsed and cleaned up, local segments an
 test('segment-count template changes require sign-in', async () => {
   assert.equal((await request('/api/segment-counts/template', { method: 'PUT', body: '{"template":"x"}' })).status, 401);
 });
+
+test('tracked segments accept ten IDs and reject eleven without changing saved segments', async (t) => {
+  const signature = require('cookie-signature');
+  const sessionStore = require('../src/session-store');
+  const strava = require('../src/strava');
+  const store = require('../src/store/segment-counts');
+  await new Promise((resolve, reject) => sessionStore.set('segment-limit', {
+    cookie: { originalMaxAge: 60_000 }, athleteId: 77,
+  }, error => (error ? reject(error) : resolve())));
+  const cookie = `connect.sid=${encodeURIComponent(`s:${signature.sign('segment-limit', config.sessionSecret)}`)}`;
+  const getSegment = t.mock.method(strava, 'getSegment', async (_athleteId, id) => ({
+    id: Number(id), name: `Segment ${id}`,
+  }));
+  const save = segmentIds => request('/api/segment-counts', {
+    method: 'PUT', headers: { cookie }, body: JSON.stringify({ segmentIds }),
+  });
+  const ids = Array.from({ length: 10 }, (_, index) => String(index + 1));
+  const accepted = await save(ids);
+  assert.equal(accepted.status, 200);
+  assert.deepEqual((await accepted.json()).segments.map(segment => segment.segment_id), ids);
+  const rejected = await save([...ids, '11']);
+  assert.equal(rejected.status, 400);
+  assert.deepEqual(await rejected.json(), { error: 'A maximum of 10 segment IDs can be tracked.' });
+  assert.equal(getSegment.mock.callCount(), 10);
+  assert.deepEqual(store.listTracked(77).map(segment => segment.segment_id).sort((a, b) => Number(a) - Number(b)), ids);
+});

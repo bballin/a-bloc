@@ -6,7 +6,7 @@ const segmentTemplate = require('../../public/segment-template');
 const store = require('../store/segment-counts');
 const { requireAuth } = require('./middleware');
 
-const MAX_TRACKED_SEGMENTS = 5;
+const MAX_TRACKED_SEGMENTS = 10;
 
 const router = express.Router();
 
