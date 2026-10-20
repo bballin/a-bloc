@@ -46,8 +46,9 @@
       </nav>
 
       <section id="gearPanel" class="tab-panel">
-        <div class="grid">
-        <div class="card span-2">
+        <div class="gear-layout">
+        <div class="gear-column">
+        <div class="card">
           <h2>Sync Recent Activities (manual)</h2>
           <p>One-shot version of the same logic the auto-monitor uses. Useful for backfilling or testing.</p>
           <form id="syncForm" class="row" autocomplete="off">
@@ -59,18 +60,20 @@
           <div id="syncResults"></div>
         </div>
 
-        <div class="card span-2">
+        <div class="card">
           <h2>Recent Strava Activities</h2>
           <div class="row">
             <button class="btn" id="refreshActivities" type="button">Refresh list</button>
             <button class="btn" id="loadMoreActivities" type="button">Load More</button>
           </div>
-          <table id="activitiesTable">
-            <thead><tr><th>When</th><th>Name</th><th>Type</th><th>Gear</th><th></th></tr></thead>
+          <table id="activitiesTable" class="compact-table">
+            <thead><tr><th>When</th><th>Name</th><th>Gear</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
+        </div>
 
+        <div class="gear-column">
         <div class="card">
           <h2>Inspect a FIT file</h2>
           <p>Drop a FIT file, or fetch one of your recent activities, to discover the sensors recorded in it. Use the sensor list below to build mappings to your Strava gear.</p>
@@ -93,10 +96,11 @@
             <input type="number" name="priority" placeholder="priority" value="0" />
             <button class="btn primary" type="submit">Save mapping</button>
           </form>
-          <table id="mappingsTable">
+          <table id="mappingsTable" class="compact-table">
             <thead><tr><th>Sensor</th><th>Gear</th><th>Priority</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
+        </div>
         </div>
 
         </div>

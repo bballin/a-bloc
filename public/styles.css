@@ -101,13 +101,15 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .card h2 { margin-top: 0; font-size: 16px; }
 .card p { color: var(--muted); margin-top: 0; }
 
-.grid {
+.gear-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+  align-items: start;
 }
-@media (max-width: 800px) {
-  .grid { grid-template-columns: 1fr; }
+.gear-column { min-width: 0; }
+@media (max-width: 960px) {
+  .gear-layout { grid-template-columns: minmax(0, 1fr); }
 }
 .span-2 { grid-column: 1 / -1; }
 
@@ -152,6 +154,9 @@ details summary h2 { margin: 0; }
   font-size: 14px;
 }
 .btn:hover { border-color: var(--accent); }
+.btn.btn-sm { padding: 4px 10px; font-size: 13px; }
+.btn.btn-icon, #mappingsTable .btn.btn-icon { display: inline-flex; align-items: center; justify-content: center; padding: 6px; line-height: 0; }
+.btn-icon svg { width: 16px; height: 16px; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
 .btn.primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
 
@@ -163,7 +168,7 @@ input, select {
   padding: 8px 10px;
   font-size: 14px;
 }
-input[type="file"] { padding: 6px; }
+input[type="file"] { padding: 6px; max-width: 100%; }
 
 .segment-id-list { display: grid; gap: 12px; }
 .segment-id-row { display: grid; grid-template-columns: 32px minmax(160px, 0.7fr) minmax(0, 2fr); gap: 8px; align-items: start; }
@@ -210,12 +215,24 @@ input[type="file"] { padding: 6px; }
 
 .mapping-form {
   display: grid;
-  grid-template-columns: 2fr 1.5fr 1.5fr 80px auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 80px auto;
+  grid-template-areas:
+    "key key label label"
+    "gear gear priority save";
   gap: 8px;
   margin-bottom: 12px;
 }
+.mapping-form > * { min-width: 0; }
+.mapping-form [name="sensor_key"] { grid-area: key; }
+.mapping-form [name="sensor_label"] { grid-area: label; }
+.mapping-form [name="gear_id"] { grid-area: gear; }
+.mapping-form [name="priority"] { grid-area: priority; }
+.mapping-form button { grid-area: save; }
 @media (max-width: 700px) {
-  .mapping-form { grid-template-columns: 1fr; }
+  .mapping-form {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "key" "label" "gear" "priority" "save";
+  }
 }
 
 table {
@@ -234,6 +251,23 @@ th { color: var(--muted); font-weight: 600; }
 .table-sort:hover { color: var(--text); }
 .table-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 tr:last-child td { border-bottom: none; }
+.nowrap, .table-actions { white-space: nowrap; }
+.table-actions { text-align: right; }
+.compact-table { width: max-content; max-width: 100%; }
+.compact-table th, .compact-table td { padding: 8px 6px; }
+.compact-table code { overflow-wrap: anywhere; }
+#mappingsTable td:last-child { white-space: nowrap; text-align: right; }
+#mappingsTable td:last-child [role="status"] { display: block; white-space: normal; }
+#mappingsTable .btn { padding: 4px 10px; font-size: 13px; }
+#mappingsTable td input, #mappingsTable td select { width: 100%; min-width: 0; margin-top: 4px; }
+#mappingsTable td input[type="number"] { width: 64px; margin-top: 0; }
+#mappingsTable td:nth-child(2) select { margin-top: 0; }
+@media (max-width: 600px) {
+  #gearPanel .card { padding: 14px; overflow-x: auto; }
+  .compact-table th, .compact-table td { padding: 6px 4px; }
+  .compact-table .table-actions, #mappingsTable td:last-child { white-space: normal; }
+  .compact-table .table-actions .btn, #mappingsTable td:last-child .btn:not(.btn-icon) { display: block; width: 100%; margin-bottom: 4px; padding: 4px 8px; white-space: nowrap; }
+}
 
 .sensor-row {
   display: flex; justify-content: space-between; align-items: center;

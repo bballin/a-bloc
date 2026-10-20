@@ -1,4 +1,7 @@
 const $ = (sel) => document.querySelector(sel);
+const iconSvg = (path) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${path}" /></svg>`;
+const EDIT_ICON = iconSvg('M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z');
+const DELETE_ICON = iconSvg('M3 6h18M8 6V4h8v2m3 0-.8 14H5.8L5 6m4 4v7m6-7v7');
 
 let gearCache = [];
 let importedSegments = [];
@@ -286,7 +289,7 @@ function renderLocalSegments() {
       <td>${segment.total_elevation_gain == null ? '' : `${escapeHtml(segment.total_elevation_gain)} m`}</td>
       <td>${formatCoordinates(segment.start_lat, segment.start_lng)}</td>
       <td><code>${escapeHtml(segment.segment_id)}</code></td>
-      <td><button class="btn danger" type="button" data-delete-local-segment="${escapeHtml(segment.segment_id)}">Delete</button></td>
+      <td><button class="btn danger btn-icon" type="button" data-delete-local-segment="${escapeHtml(segment.segment_id)}" aria-label="Delete ${escapeHtml(segment.name)}" title="Delete">${DELETE_ICON}</button></td>
     </tr>`).join('');
   tbody.querySelectorAll('[data-delete-local-segment]').forEach(button => {
     button.onclick = () => onDeleteLocalSegment(button.dataset.deleteLocalSegment, button);
@@ -607,7 +610,7 @@ async function loadActivities(reset = false) {
   if (reset) {
     activityPage = 0;
     loadMoreButton.classList.add('hidden');
-    tbody.innerHTML = '<tr><td colspan="5" class="muted">Loading…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="muted">Loading…</td></tr>';
   } else {
     tbody.querySelector('[data-activity-load-error]')?.remove();
     loadMoreButton.textContent = 'Loading…';
@@ -615,20 +618,23 @@ async function loadActivities(reset = false) {
   try {
     const { activities } = await api(`/api/activities?page=${page}`);
     if (reset) tbody.replaceChildren();
-    const rows = activities.map(a => `
+    const rows = activities.map(a => {
+      const start = new Date(a.start_date);
+      const type = a.sport_type || a.type || '';
+      return `
       <tr>
-        <td>${new Date(a.start_date).toLocaleString()}</td>
-        <td><a href="https://www.strava.com/activities/${a.id}" target="_blank">${escapeHtml(a.name)}</a></td>
-        <td>${escapeHtml(a.sport_type || a.type || '')}</td>
+        <td class="nowrap"><div>${start.toLocaleDateString()}</div><div class="muted">${start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</div></td>
+        <td><a href="https://www.strava.com/activities/${a.id}" target="_blank">${escapeHtml(a.name)}</a>${type ? `<div class="muted">${escapeHtml(type)}</div>` : ''}</td>
         <td>${a.gear_id ? escapeHtml(gearName(a.gear_id)) : '<span class="muted">none</span>'}</td>
-        <td><button class="btn" data-process="${a.id}">Tag</button> <button class="btn" data-process="${a.id}" data-force="1">Re-tag</button></td>
+        <td class="table-actions"><button class="btn btn-sm" data-process="${a.id}">Tag</button> <button class="btn btn-sm" data-process="${a.id}" data-force="1">Re-tag</button></td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
     if (rows) tbody.insertAdjacentHTML('beforeend', rows);
     else {
       const row = tbody.insertRow();
       const cell = row.insertCell();
-      cell.colSpan = 5;
+      cell.colSpan = 4;
       cell.className = 'muted';
       cell.textContent = reset ? 'No recent activities.' : 'No more recent activities.';
     }
@@ -638,12 +644,12 @@ async function loadActivities(reset = false) {
       b.onclick = () => onProcessActivity(b.dataset.process, !!b.dataset.force, b);
     });
   } catch (e) {
-    if (reset) tbody.innerHTML = `<tr><td colspan="5" class="status-error">${escapeHtml(e.message)}</td></tr>`;
+    if (reset) tbody.innerHTML = `<tr><td colspan="4" class="status-error">${escapeHtml(e.message)}</td></tr>`;
     else {
       const row = tbody.insertRow();
       row.dataset.activityLoadError = 'true';
       const cell = row.insertCell();
-      cell.colSpan = 5;
+      cell.colSpan = 4;
       cell.className = 'status-error';
       cell.textContent = e.message;
     }
@@ -735,7 +741,7 @@ async function loadMappings() {
       <td><div><code>${escapeHtml(m.sensor_key)}</code></div><div class="muted">${escapeHtml(m.sensor_label || '')}</div></td>
       <td>${escapeHtml(m.gear_name || m.gear_id)}</td>
       <td>${m.priority}</td>
-      <td><button class="btn" type="button" data-edit-id="${m.id}">Edit</button> <button class="btn" data-id="${m.id}">Delete</button></td>
+      <td><button class="btn btn-icon" type="button" data-edit-id="${m.id}" aria-label="Edit mapping ${escapeHtml(m.sensor_key)}" title="Edit">${EDIT_ICON}</button> <button class="btn danger btn-icon" type="button" data-id="${m.id}" aria-label="Delete mapping ${escapeHtml(m.sensor_key)}" title="Delete">${DELETE_ICON}</button></td>
     </tr>
   `).join('') || '<tr><td colspan="4" class="muted">No mappings yet.</td></tr>';
   tbody.querySelectorAll('button[data-edit-id]').forEach(button => {
@@ -875,7 +881,7 @@ function renderInspect(r) {
         <div><code>${escapeHtml(s.key)}</code></div>
         <div class="muted">${escapeHtml(s.label || '')}</div>
       </div>
-      <button class="btn" data-key="${escapeHtml(s.key)}" data-label="${escapeHtml(s.label || '')}">Use this →</button>
+      <button class="btn" data-key="${escapeHtml(s.key)}" data-label="${escapeHtml(s.label || '')}">Use this ↓</button>
     </div>
   `).join('') || '<p class="muted">No sensor/device entries found in this file.</p>';
   $('#inspectResult').innerHTML = meta + sensors;
