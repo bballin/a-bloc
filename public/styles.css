@@ -179,6 +179,35 @@ input[type="file"] { padding: 6px; }
   .segment-details { grid-column: 2; padding-top: 0; }
 }
 
+.template-editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.template-editor h3 { margin: 0 0 8px; font-size: 14px; }
+.template-editor textarea {
+  width: 100%; min-height: 110px; resize: vertical;
+  background: var(--card-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font: 14px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.template-preview {
+  margin: 0; min-height: 110px; padding: 8px 10px;
+  border: 1px dashed var(--border); border-radius: 8px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.template-editor .muted { font-size: 12px; margin: 6px 0 0; }
+.template-editor p.status-error { color: var(--err); font-size: 13px; margin: 6px 0 0; }
+.template-variables { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 16px; margin-top: 4px; }
+.template-variables h4 { grid-column: 1 / -1; margin: 10px 0 2px; font-size: 13px; color: var(--muted); }
+.template-variable { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--muted); }
+.template-variable button {
+  flex-shrink: 0; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--card-2); color: var(--accent-2); cursor: pointer;
+  font: 12px ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.template-variable button:hover { border-color: var(--accent); }
+@media (max-width: 800px) {
+  .template-editor { grid-template-columns: 1fr; }
+}
+
 .mapping-form {
   display: grid;
   grid-template-columns: 2fr 1.5fr 1.5fr 80px auto;

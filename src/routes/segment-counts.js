@@ -2,6 +2,7 @@ const express = require('express');
 const config = require('../config');
 const strava = require('../strava');
 const segmentCounts = require('../segment-counts');
+const segmentTemplate = require('../../public/segment-template');
 const store = require('../store/segment-counts');
 const { requireAuth } = require('./middleware');
 
@@ -11,7 +12,7 @@ const router = express.Router();
 
 const finiteOrNull = value => (Number.isFinite(Number(value)) && value != null ? Number(value) : null);
 
-function segmentCountDetails(segment) {
+function segmentCountDetails(segment, name) {
   return {
     segment_id: String(segment.id),
     name: segment.name || String(segment.id),
@@ -19,22 +20,37 @@ function segmentCountDetails(segment) {
     average_grade: finiteOrNull(segment.average_grade),
     total_elevation_gain: finiteOrNull(segment.total_elevation_gain),
     effort_count: finiteOrNull(segment.athlete_segment_stats && segment.athlete_segment_stats.effort_count),
+    template_fields: segmentTemplate.segmentFields(segment, name),
   };
+}
+
+function templateResponse(athleteId) {
+  const saved = store.getTemplate(athleteId);
+  return { template: saved || segmentTemplate.DEFAULT_TEMPLATE, isDefault: !saved };
 }
 
 router.get('/api/segment-counts', requireAuth, async (req, res) => {
   const athleteId = req.session.athleteId;
   try {
     const segments = await Promise.all(store.listTracked(athleteId)
-      .map(async tracked => segmentCountDetails(await strava.getSegment(athleteId, tracked.segment_id))));
+      .map(async tracked => segmentCountDetails(await strava.getSegment(athleteId, tracked.segment_id), tracked.name)));
     res.json({
       segments,
       events: store.listRecentEvents(athleteId),
       callbackUrl: config.webhookCallbackUrl,
+      ...templateResponse(athleteId),
     });
   } catch (e) {
     res.status(502).json({ error: e.message });
   }
+});
+
+router.put('/api/segment-counts/template', requireAuth, (req, res) => {
+  const template = req.body && req.body.template;
+  const error = segmentTemplate.validateTemplate(template);
+  if (error) return res.status(400).json({ error });
+  store.setTemplate(req.session.athleteId, template);
+  res.json(templateResponse(req.session.athleteId));
 });
 
 router.post('/api/segment-counts/refresh', requireAuth, async (req, res) => {
@@ -63,7 +79,7 @@ router.put('/api/segment-counts', requireAuth, async (req, res) => {
     const segments = [];
     for (const id of segmentIds) segments.push(await strava.getSegment(req.session.athleteId, id));
     store.replaceTracked(req.session.athleteId, segments);
-    res.json({ segments: segments.map(segmentCountDetails) });
+    res.json({ segments: segments.map(segment => segmentCountDetails(segment)) });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }

@@ -214,6 +214,15 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 5,
+    name: 'remember the segment-count block written to each activity',
+    up(db) {
+      // Custom description templates can produce any text, so the exact block is
+      // stored to find and replace it when the activity is processed again.
+      db.exec('ALTER TABLE segment_count_events ADD COLUMN description_block TEXT');
+    },
+  },
 ];
 
 function migrate(db, migrations = MIGRATIONS) {

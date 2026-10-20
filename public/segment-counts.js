@@ -1,5 +1,113 @@
 (() => {
 const $ = selector => document.querySelector(selector);
+const templates = window.segmentTemplate;
+
+const SAMPLE_SEGMENT = {
+  id: '0', name: 'Sample Climb', distance: 2400, average_grade: 6.1, maximum_grade: 11.4,
+  total_elevation_gain: 148, climb_category: 1, city: 'Hill Town', state: 'CA', country: 'United States',
+  effort_count: 12, pr_elapsed_time: 498, pr_date: '2026-06-01', athlete_count: 15230,
+  total_effort_count: 98140, kom: '5:02', qom: '6:11',
+};
+let previewSegments = [];
+let savedTemplate = templates.DEFAULT_TEMPLATE;
+
+// Ride-specific values are unknown until an activity is processed, so the preview invents them.
+function sampleEffort(segment) {
+  const best = segment.pr_elapsed_time;
+  const fallback = segment.distance ? Math.round(segment.distance / (25 / 3.6)) : 300;
+  return {
+    elapsed_time: best ? best + 12 : fallback,
+    average_watts: 245,
+    average_heartrate: 152,
+    pr_rank: best ? 2 : null,
+    kom_rank: null,
+  };
+}
+
+function renderPreview() {
+  const template = $('#templateInput').value;
+  const error = templates.validateTemplate(template);
+  $('#templateError').textContent = error || '';
+  $('#templateError').classList.toggle('hidden', !error);
+  const segments = previewSegments.length ? previewSegments : [SAMPLE_SEGMENT];
+  const lines = segments
+    .map(segment => templates.render(template.trim() || templates.DEFAULT_TEMPLATE, segment, sampleEffort(segment)))
+    .filter(Boolean);
+  $('#templatePreview').textContent = lines.length ? ['-'.repeat(28), ...lines].join('\n') : '(nothing will be added)';
+  $('#templatePreviewNote').textContent = previewSegments.length
+    ? 'Shows every tracked segment as if all were completed. This-ride values (time, PR rank, power, heart rate, speed) are sample values.'
+    : 'Uses a sample segment until you track one. This-ride values (time, PR rank, power, heart rate, speed) are sample values.';
+  const status = $('#templateStatus');
+  if (template.trim() !== savedTemplate && !status.dataset.busy) {
+    status.textContent = 'Unsaved changes.';
+    status.className = 'muted';
+  } else if (status.textContent === 'Unsaved changes.') {
+    status.textContent = '';
+  }
+}
+
+function insertVariable(name) {
+  const input = $('#templateInput');
+  const token = `{${name}}`;
+  const start = input.selectionStart == null ? input.value.length : input.selectionStart;
+  const end = input.selectionEnd == null ? start : input.selectionEnd;
+  input.setRangeText(token, start, end, 'end');
+  input.focus();
+  renderPreview();
+}
+
+function renderVariables() {
+  const container = $('#templateVariables');
+  container.replaceChildren();
+  let group = null;
+  templates.VARIABLES.forEach(variable => {
+    if (variable.group !== group) {
+      group = variable.group;
+      const heading = document.createElement('h4');
+      heading.textContent = group;
+      container.append(heading);
+    }
+    const item = document.createElement('div');
+    item.className = 'template-variable';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = `{${variable.name}}`;
+    button.title = `Insert {${variable.name}}`;
+    button.addEventListener('click', () => insertVariable(variable.name));
+    const description = document.createElement('span');
+    description.textContent = variable.description;
+    item.append(button, description);
+    container.append(item);
+  });
+}
+
+function applyTemplate(data) {
+  savedTemplate = data.template || templates.DEFAULT_TEMPLATE;
+  $('#templateInput').value = savedTemplate;
+  renderPreview();
+}
+
+async function saveTemplate(template) {
+  const status = $('#templateStatus');
+  status.dataset.busy = 'true';
+  status.textContent = 'Saving...';
+  status.className = 'muted';
+  try {
+    const data = await api('/api/segment-counts/template', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ template }),
+    });
+    delete status.dataset.busy;
+    applyTemplate(data);
+    status.textContent = data.isDefault ? 'Using the default text.' : 'Description text saved.';
+    status.className = 'status-ok';
+  } catch (error) {
+    delete status.dataset.busy;
+    status.textContent = error.message;
+    status.className = 'status-error';
+  }
+}
 
 function renderSegmentDetails(segment) {
   const details = document.createElement('div');
@@ -97,6 +205,8 @@ async function loadConfiguration() {
   const data = await api('/api/segment-counts');
   renderInputs(data.segments || []);
   renderEvents(data.events || []);
+  previewSegments = (data.segments || []).map(segment => segment.template_fields).filter(Boolean);
+  applyTemplate(data);
 }
 
 async function saveSegments(event) {
@@ -111,6 +221,8 @@ async function saveSegments(event) {
       body: JSON.stringify({ segmentIds }),
     });
     renderInputs(data.segments || []);
+    previewSegments = (data.segments || []).map(segment => segment.template_fields).filter(Boolean);
+    renderPreview();
     status.textContent = `${data.segments.length} segment${data.segments.length === 1 ? '' : 's'} saved.`;
     status.className = 'status-ok';
   } catch (error) {
@@ -192,6 +304,13 @@ async function initialize() {
   const countsSection = $('#countsSection');
   if (countsSection) countsSection.classList.remove('hidden');
   $('#segmentsForm').addEventListener('submit', saveSegments);
+  renderVariables();
+  $('#templateInput').addEventListener('input', renderPreview);
+  $('#templateForm').addEventListener('submit', event => {
+    event.preventDefault();
+    saveTemplate($('#templateInput').value);
+  });
+  $('#resetTemplate').addEventListener('click', () => saveTemplate(''));
   const subscriptionStatus = $('#subscriptionStatus');
   if (subscriptionStatus) {
     $('#createSubscription').addEventListener('click', createSubscription);

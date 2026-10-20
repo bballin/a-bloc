@@ -143,4 +143,18 @@ test('signed-in routes: FIT uploads are parsed and cleaned up, local segments an
   const summary = await (await fetch(`${baseUrl}/api/settings`, { headers: { cookie } })).json();
   assert.deepEqual(Object.keys(summary).sort(), ['coros', 'garmin', 'hammerhead', 'strava_web', 'wahoo']);
   assert.equal(summary.wahoo.connected, false);
+
+  const putTemplate = template => fetch(`${baseUrl}/api/segment-counts/template`, {
+    method: 'PUT', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ template }),
+  });
+  const invalid = await putTemplate('{segment} {bogus}');
+  assert.equal(invalid.status, 400);
+  assert.equal((await invalid.json()).error, 'Unknown variable: {bogus}');
+  assert.deepEqual(await (await putTemplate('{segment}: {count_ordinal} ride')).json(),
+    { template: '{segment}: {count_ordinal} ride', isDefault: false });
+  assert.deepEqual(await (await putTemplate('')).json(), { template: '{segment}: {count} {completions}', isDefault: true });
+});
+
+test('segment-count template changes require sign-in', async () => {
+  assert.equal((await request('/api/segment-counts/template', { method: 'PUT', body: '{"template":"x"}' })).status, 401);
 });

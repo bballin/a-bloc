@@ -247,6 +247,15 @@ description text is preserved, and webhook retries do not duplicate the
 block. Tracked IDs and webhook logs remain in the local database; only the
 description block is written to Strava.
 
+Use **Description text** to customise the line written for each completed
+segment. Templates use `{variable}` placeholders such as `{segment}`,
+`{count}`, `{count_ordinal}`, `{best_time}`, `{time}`, `{pr_rank}`,
+`{distance_km}`, `{elevation_m}` and `{grade}`; the page lists every variable
+and shows a live preview. Values Strava does not provide are left blank. The
+default is `{segment}: {count} {completions}`. The exact block written to each
+activity is stored so it is replaced, not duplicated, even after the template
+changes.
+
 Use **Refresh** in Recent webhook activity to check and process your latest
 Strava activity. The Strava webhook subscription can be created from either
 the Gear Selector or Segment Counts page.
