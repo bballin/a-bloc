@@ -261,7 +261,8 @@ async function loadSubscription() {
     $('#createSubscription').classList.toggle('hidden', Boolean(subscription));
     $('#deleteSubscription').classList.toggle('hidden', !subscription);
     $('#deleteSubscription').dataset.id = subscription ? subscription.id : '';
-    status.textContent = subscription ? `Active subscription ${subscription.id}` : 'No subscription found.';
+    status.textContent = subscription ? 'Subscribed' : 'Not subscribed';
+    status.title = subscription ? `Subscription ${subscription.id}` : '';
     status.className = subscription ? 'status-ok' : 'muted';
   } catch (error) {
     status.textContent = error.message;

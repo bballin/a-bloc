@@ -229,20 +229,23 @@
       <section id="configurationPanel" class="tab-panel hidden">
         <div class="card">
           <h2>Strava Webhook</h2>
-          <p>Process new activities as soon as Strava sends them. Webhook processing evaluates FIT sensors and replaces any existing gear assignment.</p>
-          <form id="gearWebhookForm" class="stack" autocomplete="off">
+          <div class="webhook-group">
+            <h3>Gear updates</h3>
+            <p>Process new activities as soon as Strava sends them. When enabled, each new activity's FIT file is checked for mapped sensors and the matching gear is assigned, replacing any existing gear on that activity.</p>
             <div class="row">
-              <label><input type="checkbox" id="gearWebhookEnabled" /> Enable webhook gear updates</label>
-              <button class="btn primary" type="submit">Save</button>
+              <label class="switch"><input type="checkbox" id="gearWebhookEnabled" role="switch" /><span class="switch-track" aria-hidden="true"></span> Enabled</label>
               <span id="gearWebhookStatus" class="muted" role="status"></span>
             </div>
-            <div class="muted">Callback: <code id="gearWebhookCallback"></code></div>
-          </form>
-          <div class="row">
-            <button class="btn primary" id="createSubscription" type="button">Create subscription</button>
-            <button class="btn danger hidden" id="deleteSubscription" type="button">Delete subscription</button>
-            <button class="btn" id="refreshSubscription" type="button">Refresh status</button>
-            <span id="subscriptionStatus" class="muted" role="status"></span>
+          </div>
+          <div class="webhook-group">
+            <h3>Subscription</h3>
+            <p>Strava only sends new activities to this app while a webhook subscription exists.</p>
+            <div class="row">
+              <span id="subscriptionStatus" class="muted" role="status"></span>
+              <button class="btn primary hidden" id="createSubscription" type="button">Create subscription</button>
+              <button class="btn danger hidden" id="deleteSubscription" type="button">Delete subscription</button>
+              <button class="btn" id="refreshSubscription" type="button">Refresh</button>
+            </div>
           </div>
         </div>
 

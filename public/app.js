@@ -53,7 +53,7 @@ async function init() {
   $('#refreshActivities').onclick = () => loadActivities(true);
   $('#loadMoreActivities').onclick = () => loadActivities();
   $('#syncForm').onsubmit = onSync;
-  $('#gearWebhookForm').onsubmit = onSaveGearWebhook;
+  $('#gearWebhookEnabled').onchange = onToggleGearWebhook;
   if (requestedPanel && requestedPanel.classList.contains('tab-panel')) {
     switchTab(requestedPanel.id);
   }
@@ -367,33 +367,38 @@ function showMutationStatus(selector, result) {
 }
 
 async function loadGearWebhook() {
+  const status = $('#gearWebhookStatus');
   try {
     const state = await api('/api/gear-webhook');
     $('#gearWebhookEnabled').checked = !!state.enabled;
-    $('#gearWebhookCallback').textContent = state.callbackUrl;
-    $('#gearWebhookStatus').textContent = state.enabled ? 'enabled' : 'disabled';
-    $('#gearWebhookStatus').className = state.enabled ? 'status-ok' : 'muted';
+    status.textContent = '';
   } catch (e) {
-    $('#gearWebhookStatus').textContent = e.message;
+    status.textContent = e.message;
+    status.className = 'status-error';
   }
 }
 
-async function onSaveGearWebhook(ev) {
-  ev.preventDefault();
-  const enabled = $('#gearWebhookEnabled').checked;
+async function onToggleGearWebhook() {
+  const toggle = $('#gearWebhookEnabled');
+  const enabled = toggle.checked;
   const status = $('#gearWebhookStatus');
+  toggle.disabled = true;
   status.textContent = 'Saving…';
+  status.className = 'muted';
   try {
     await api('/api/gear-webhook', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled }),
     });
-    status.textContent = enabled ? 'enabled' : 'disabled';
-    status.className = enabled ? 'status-ok' : 'muted';
+    status.textContent = 'Saved.';
+    status.className = 'status-ok';
   } catch (e) {
+    toggle.checked = !enabled;
     status.textContent = e.message;
     status.className = 'status-error';
+  } finally {
+    toggle.disabled = false;
   }
 }
 

@@ -249,3 +249,21 @@ tr:last-child td { border-bottom: none; }
 .status-error, .status-no_mapping, .status-no_activity { color: var(--err); }
 
 .muted { color: var(--muted); }
+
+.webhook-group + .webhook-group { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.webhook-group h3 { margin: 0 0 6px; font-size: 14px; }
+
+.row label.switch { position: relative; gap: 8px; color: var(--text); cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.switch-track {
+  position: relative; width: 36px; height: 20px; border-radius: 10px;
+  background: var(--card-2); border: 1px solid var(--border); transition: background 0.15s;
+}
+.switch-track::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--muted); transition: transform 0.15s, background 0.15s;
+}
+.switch input:checked + .switch-track { background: var(--accent); border-color: var(--accent); }
+.switch input:checked + .switch-track::after { transform: translateX(16px); background: white; }
+.switch input:focus-visible + .switch-track { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.switch input:disabled + .switch-track { opacity: 0.55; }
