@@ -10,6 +10,18 @@ const { chooseGear } = require('../src/matcher');
 
 after(cleanup);
 
+test('athlete photos are saved, updated, and preserved when tokens refresh', () => {
+  const athletes = require('../src/store/athletes');
+  const tokens = { access_token: 'access', refresh_token: 'refresh', expires_at: 123 };
+  athletes.save({ id: 99, profile: 'https://example.com/photo.jpg' }, tokens);
+  athletes.updateTokens(99, { ...tokens, access_token: 'new-access' });
+  assert.equal(athletes.get(99).profile, 'https://example.com/photo.jpg');
+  athletes.save({ id: 99, profile_medium: 'https://example.com/small.jpg' }, tokens);
+  assert.equal(athletes.get(99).profile, 'https://example.com/small.jpg');
+  athletes.save({ id: 99 }, tokens);
+  assert.equal(athletes.get(99).profile, '');
+});
+
 test('chooseGear prefers the lowest priority mapping among matching sensors', () => {
   mappings.upsert(1, { sensorKey: 'A', gearId: 'b1', gearName: 'Bike 1', priority: 5 });
   mappings.upsert(1, { sensorKey: 'b', gearId: 'b2', gearName: 'Bike 2', priority: 1 });

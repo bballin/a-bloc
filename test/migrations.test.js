@@ -31,6 +31,20 @@ test('fresh database migrates to the latest version', () => {
   assert.deepEqual(migrate(db), [], 'second run is a no-op');
 });
 
+test('profile photo migration preserves existing athletes and marks photos for loading', () => {
+  const db = new Database(':memory:');
+  migrate(db, require('../src/migrations').MIGRATIONS.filter(migration => migration.version < 6));
+  db.prepare(`INSERT INTO athletes (id, firstname, access_token, refresh_token, expires_at, updated_at)
+    VALUES (77, 'Test', 'access', 'refresh', 123, 1)`).run();
+  migrate(db);
+  const athlete = db.prepare('SELECT * FROM athletes WHERE id = 77').get();
+  assert.equal(athlete.firstname, 'Test');
+  assert.equal(athlete.access_token, 'access');
+  assert.equal(athlete.profile, null);
+  assert.deepEqual(migrate(db), []);
+  db.close();
+});
+
 test('legacy segments move into the shared cache, keeping the newest copy', () => {
   const db = legacyDatabase();
   migrate(db);

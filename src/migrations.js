@@ -223,6 +223,13 @@ const MIGRATIONS = [
       db.exec('ALTER TABLE segment_count_events ADD COLUMN description_block TEXT');
     },
   },
+  {
+    version: 6,
+    name: 'store the Strava athlete profile photo',
+    up(db) {
+      db.exec('ALTER TABLE athletes ADD COLUMN profile TEXT');
+    },
+  },
 ];
 
 function migrate(db, migrations = MIGRATIONS) {

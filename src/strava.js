@@ -65,11 +65,15 @@ async function api(athleteId, path, options = {}) {
   return res;
 }
 
-async function listGear(athleteId) {
-  // Strava returns gear inside the athlete object
+async function getAthleteProfile(athleteId) {
   const res = await api(athleteId, '/athlete');
   if (!res.ok) throw new Error(`Failed to fetch athlete: ${res.status} ${await res.text()}`);
-  const a = await res.json();
+  return res.json();
+}
+
+async function listGear(athleteId) {
+  // Strava returns gear inside the athlete object
+  const a = await getAthleteProfile(athleteId);
   const bikes = (a.bikes || []).map(b => ({ ...b, type: 'bike' }));
   const shoes = (a.shoes || []).map(s => ({ ...s, type: 'shoes' }));
   return [...bikes, ...shoes];
@@ -179,6 +183,7 @@ module.exports = {
   exchangeCodeForToken,
   saveAthlete,
   getAthlete,
+  getAthleteProfile,
   getValidAccessToken,
   listGear,
   listRecentActivities,

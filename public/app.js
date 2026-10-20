@@ -42,11 +42,7 @@ async function init() {
   $('#mainSection').classList.remove('hidden');
   signedIn = true;
   updateGarminPauseWarning(garminLoginDisabledUntil);
-  $('#userBox').innerHTML = `Signed in as <strong>${escapeHtml(me.athlete.firstname)} ${escapeHtml(me.athlete.lastname)}</strong> · <button class="btn" id="logoutBtn">Sign out</button>`;
-  $('#logoutBtn').onclick = async () => {
-    await api('/auth/logout', { method: 'POST' });
-    location.reload();
-  };
+  renderSignedInUser(me.athlete);
 
   await Promise.all([loadGear(), loadMappings(), loadSettings(), loadGearWebhook()]);
 
@@ -92,6 +88,26 @@ async function init() {
     };
   });
   await loadActivities(true);
+}
+
+function renderSignedInUser(athlete) {
+  const initials = `${(athlete.firstname || '').slice(0, 1)}${(athlete.lastname || '').slice(0, 1)}`.toUpperCase();
+  $('#userBox').innerHTML = `<span>Signed in as <strong>${escapeHtml(athlete.firstname)} ${escapeHtml(athlete.lastname)}</strong></span>
+    <span class="user-avatar" role="img" aria-label="Strava profile photo">${escapeHtml(initials)}
+      ${athlete.profile ? `<img src="${escapeHtml(athlete.profile)}" alt="" referrerpolicy="no-referrer" />` : ''}
+    </span>
+    <span aria-hidden="true"> · </span><button class="btn" id="logoutBtn">Sign out</button>`;
+  const photo = $('#userBox img');
+  if (photo) {
+    photo.onerror = () => {
+      console.warn('Unable to load the Strava profile photo; showing initials instead.');
+      photo.remove();
+    };
+  }
+  $('#logoutBtn').onclick = async () => {
+    await api('/auth/logout', { method: 'POST' });
+    location.reload();
+  };
 }
 
 // Signed-out visitors can browse the tabs, but every action needs a Strava login.

@@ -58,6 +58,10 @@ You can process activities in four ways:
 
 4. Open <http://localhost:3000> and choose **Connect with Strava**.
 
+The signed-in header shows your Strava profile photo in a circular badge after
+your name, with initials when no photo is available. Existing accounts load
+their photo automatically the next time they open the app.
+
 The app listens on `0.0.0.0` and uses the `PORT` environment variable when
 provided (default `3000`). Without `SESSION_SECRET` the app starts with an
 insecure development secret and cannot store credentials; in production

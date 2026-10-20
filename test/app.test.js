@@ -12,7 +12,7 @@ let server;
 let baseUrl;
 
 before(async () => {
-  athletes.save({ id: 77, firstname: 'Test', lastname: 'Rider' }, {
+  athletes.save({ id: 77, firstname: 'Test', lastname: 'Rider', profile: 'https://example.com/rider.jpg' }, {
     access_token: 'x', refresh_token: 'y', expires_at: 4_102_444_800,
   });
   server = createApp({ queue }).listen(0, '127.0.0.1');
@@ -96,6 +96,37 @@ test('OAuth login redirects to Strava with the configured callback', async () =>
   assert.match(location.searchParams.get('scope'), /activity:write/);
 });
 
+test('existing signed-in accounts load and cache their Strava photo without exposing tokens', async (t) => {
+  const strava = require('../src/strava');
+  const signature = require('cookie-signature');
+  const sessionStore = require('../src/session-store');
+  athletes.save({ id: 79, firstname: 'Existing', lastname: 'Rider' }, {
+    access_token: 'access', refresh_token: 'refresh', expires_at: 4_102_444_800,
+  });
+  require('../src/db').prepare('UPDATE athletes SET profile = NULL WHERE id = 79').run();
+  await new Promise((resolve, reject) => sessionStore.set('profile', {
+    cookie: { originalMaxAge: 60_000 }, athleteId: 79,
+  }, error => (error ? reject(error) : resolve())));
+  const cookie = `connect.sid=${encodeURIComponent(`s:${signature.sign('profile', config.sessionSecret)}`)}`;
+  const getProfile = t.mock.method(strava, 'getAthleteProfile', async id => {
+    assert.equal(id, 79);
+    athletes.updateTokens(id, { access_token: 'refreshed', refresh_token: 'new-refresh', expires_at: 4_102_444_800 });
+    return { id, firstname: 'Existing', lastname: 'Rider', profile: 'https://example.com/existing.jpg' };
+  });
+  const expected = {
+    authenticated: true,
+    athlete: { id: 79, firstname: 'Existing', lastname: 'Rider', profile: 'https://example.com/existing.jpg' },
+  };
+  for (let i = 0; i < 2; i++) {
+    const response = await request('/api/me', { headers: { cookie } });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), expected);
+  }
+  assert.equal(getProfile.mock.callCount(), 1);
+  assert.equal(athletes.get(79).access_token, 'refreshed');
+  assert.deepEqual(await (await request('/api/me')).json(), { authenticated: false });
+});
+
 test('signed-in routes: FIT uploads are parsed and cleaned up, local segments and mappings are listed', async () => {
   const fs = require('fs');
   const signature = require('cookie-signature');
@@ -115,7 +146,10 @@ test('signed-in routes: FIT uploads are parsed and cleaned up, local segments an
   }
 
   const me = await (await fetch(`${baseUrl}/api/me`, { headers: { cookie } })).json();
-  assert.deepEqual(me, { authenticated: true, athlete: { id: 77, firstname: 'Test', lastname: 'Rider' } });
+  assert.deepEqual(me, {
+    authenticated: true,
+    athlete: { id: 77, firstname: 'Test', lastname: 'Rider', profile: 'https://example.com/rider.jpg' },
+  });
 
   const form = new FormData();
   form.append('fit', new Blob([Buffer.from('not a fit file')]), 'ride.fit');

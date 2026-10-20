@@ -34,12 +34,22 @@ router.post('/auth/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
-router.get('/api/me', (req, res) => {
-  const athlete = req.session.athleteId && strava.getAthlete(req.session.athleteId);
+router.get('/api/me', async (req, res) => {
+  let athlete = req.session.athleteId && strava.getAthlete(req.session.athleteId);
   if (!athlete) return res.json({ authenticated: false });
+  if (athlete.profile === null) {
+    try {
+      const profile = await strava.getAthleteProfile(athlete.id);
+      strava.saveAthlete(profile, strava.getAthlete(athlete.id));
+      athlete = strava.getAthlete(athlete.id);
+    } catch (e) {
+      console.error(e);
+      return res.status(502).json({ error: 'Unable to load your Strava profile. Please try again.' });
+    }
+  }
   res.json({
     authenticated: true,
-    athlete: { id: athlete.id, firstname: athlete.firstname, lastname: athlete.lastname },
+    athlete: { id: athlete.id, firstname: athlete.firstname, lastname: athlete.lastname, profile: athlete.profile },
   });
 });
 
