@@ -13,6 +13,10 @@ const upsertStatement = db.prepare(`
     priority=excluded.priority
 `);
 const removeStatement = db.prepare('DELETE FROM mappings WHERE id = ? AND athlete_id = ?');
+const updateStatement = db.prepare(`
+  UPDATE mappings SET sensor_label = ?, gear_id = ?, gear_name = ?, priority = ?
+  WHERE id = ? AND athlete_id = ?
+`);
 const bestMatchStatement = db.prepare(`
   SELECT * FROM mappings
   WHERE athlete_id = ? AND sensor_key IN (SELECT value FROM json_each(?))
@@ -40,10 +44,14 @@ function remove(athleteId, id) {
   removeStatement.run(id, athleteId);
 }
 
+function update(athleteId, id, { sensorLabel, gearId, gearName, priority }) {
+  return updateStatement.run(sensorLabel, gearId, gearName, priority, id, athleteId).changes > 0;
+}
+
 // Lowest priority number wins; ties go to the most recently created mapping.
 function findBestMatch(athleteId, sensorKeys) {
   if (!sensorKeys.length) return null;
   return bestMatchStatement.get(athleteId, JSON.stringify(sensorKeys)) || null;
 }
 
-module.exports = { list, upsert, remove, findBestMatch };
+module.exports = { list, upsert, update, remove, findBestMatch };

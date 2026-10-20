@@ -207,6 +207,8 @@ For example: `garmin:vector_3:12345`, `quarq:dzero:67890`, or
 
 When multiple mapped sensors appear in a FIT file, the mapping with the lowest
 priority number wins. Ties go to the most recently created mapping.
+Use **Edit** beside a mapping's **Delete** button to change its gear, label, or
+priority. The sensor key stays fixed; **Cancel** discards unsaved changes.
 
 **Enable webhook gear updates** in **Configure** is enabled by default to process
 new activities automatically. You can disable it; explicit opt-outs are preserved.

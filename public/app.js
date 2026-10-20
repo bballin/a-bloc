@@ -730,15 +730,59 @@ async function loadMappings() {
       <td><div><code>${escapeHtml(m.sensor_key)}</code></div><div class="muted">${escapeHtml(m.sensor_label || '')}</div></td>
       <td>${escapeHtml(m.gear_name || m.gear_id)}</td>
       <td>${m.priority}</td>
-      <td><button class="btn" data-id="${m.id}">Delete</button></td>
+      <td><button class="btn" type="button" data-edit-id="${m.id}">Edit</button> <button class="btn" data-id="${m.id}">Delete</button></td>
     </tr>
   `).join('') || '<tr><td colspan="4" class="muted">No mappings yet.</td></tr>';
+  tbody.querySelectorAll('button[data-edit-id]').forEach(button => {
+    button.onclick = () => editMapping(button.closest('tr'), mappings.find(m => String(m.id) === button.dataset.editId));
+  });
   tbody.querySelectorAll('button[data-id]').forEach(b => {
     b.onclick = async () => {
       await api(`/api/mappings/${b.dataset.id}`, { method: 'DELETE' });
       loadMappings();
     };
   });
+}
+
+function editMapping(row, mapping) {
+  const availableGear = gearCache.some(g => String(g.id) === String(mapping.gear_id))
+    ? gearCache
+    : [...gearCache, { id: mapping.gear_id, name: mapping.gear_name || mapping.gear_id }];
+  row.innerHTML = `
+    <td><div><code>${escapeHtml(mapping.sensor_key)}</code></div>
+      <input name="edit_label" aria-label="Sensor label" value="${escapeHtml(mapping.sensor_label || '')}" /></td>
+    <td><select name="edit_gear" aria-label="Gear">${availableGear.map(g =>
+      `<option value="${escapeHtml(g.id)}"${String(g.id) === String(mapping.gear_id) ? ' selected' : ''}>${escapeHtml(g.name || g.id)}</option>`
+    ).join('')}</select></td>
+    <td><input name="edit_priority" type="number" step="1" required aria-label="Priority" value="${mapping.priority}" /></td>
+    <td><button class="btn primary" type="button" data-save>Save</button>
+      <button class="btn" type="button" data-cancel>Cancel</button>
+      <span role="status" class="status-error"></span></td>`;
+  row.querySelector('[data-cancel]').onclick = () => loadMappings();
+  row.querySelector('[data-save]').onclick = async () => {
+    const priorityInput = row.querySelector('[name="edit_priority"]');
+    if (!priorityInput.reportValidity()) return;
+    const button = row.querySelector('[data-save]');
+    button.disabled = true;
+    const gear = availableGear.find(g => String(g.id) === row.querySelector('[name="edit_gear"]').value);
+    try {
+      await api(`/api/mappings/${mapping.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sensor_label: row.querySelector('[name="edit_label"]').value,
+          gear_id: String(gear.id),
+          gear_name: gear.name || '',
+          priority: Number(priorityInput.value),
+        }),
+      });
+      await loadMappings();
+    } catch (error) {
+      row.querySelector('[role="status"]').textContent = error.message;
+      button.disabled = false;
+    }
+  };
+  row.querySelector('[name="edit_label"]').focus();
 }
 
 async function onInspect(ev) {

@@ -60,6 +60,23 @@ router.post('/api/mappings', requireAuth, (req, res) => {
   }
 });
 
+router.put('/api/mappings/:id', requireAuth, (req, res) => {
+  const { sensor_label, gear_id, gear_name, priority } = req.body || {};
+  if (typeof sensor_label !== 'string' || typeof gear_id !== 'string' || !gear_id.trim()
+    || typeof gear_name !== 'string' || !Number.isSafeInteger(priority)) {
+    return res.status(400).json({ error: 'A label, gear ID, gear name, and integer priority are required.' });
+  }
+  try {
+    const updated = mappings.update(req.session.athleteId, req.params.id, {
+      sensorLabel: sensor_label, gearId: gear_id, gearName: gear_name, priority,
+    });
+    if (!updated) return res.status(404).json({ error: 'Mapping not found.' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.delete('/api/mappings/:id', requireAuth, (req, res) => {
   mappings.remove(req.session.athleteId, req.params.id);
   res.json({ ok: true });

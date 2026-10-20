@@ -175,6 +175,36 @@ test('segment-count template changes require sign-in', async () => {
   assert.equal((await request('/api/segment-counts/template', { method: 'PUT', body: '{"template":"x"}' })).status, 401);
 });
 
+test('mapping edits update editable fields only and are scoped to the signed-in athlete', async () => {
+  const signature = require('cookie-signature');
+  const sessionStore = require('../src/session-store');
+  const mappings = require('../src/store/mappings');
+  await new Promise((resolve, reject) => sessionStore.set('mapping-editor', {
+    cookie: { originalMaxAge: 60_000 }, athleteId: 77,
+  }, error => (error ? reject(error) : resolve())));
+  const cookie = `connect.sid=${encodeURIComponent(`s:${signature.sign('mapping-editor', config.sessionSecret)}`)}`;
+  mappings.upsert(77, { sensorKey: 'editable:1', gearId: 'old', sensorLabel: 'Old', priority: 4 });
+  mappings.upsert(78, { sensorKey: 'private:1', gearId: 'private', priority: 1 });
+  const original = mappings.list(77).find(m => m.sensor_key === 'editable:1');
+  const other = mappings.list(78)[0];
+  const payload = { sensor_label: 'New label', gear_id: 'new', gear_name: 'New bike', priority: -2, sensor_key: 'changed' };
+  const edit = (id, body, authenticated = true) => request(`/api/mappings/${id}`, {
+    method: 'PUT', headers: authenticated ? { cookie } : {}, body: JSON.stringify(body),
+  });
+  assert.equal((await edit(original.id, payload, false)).status, 401);
+  assert.equal((await edit(original.id, payload)).status, 200);
+  const updated = mappings.list(77).find(m => m.id === original.id);
+  assert.deepEqual(updated, {
+    ...original, sensor_label: 'New label', gear_id: 'new', gear_name: 'New bike', priority: -2,
+  });
+  for (const invalid of [{ ...payload, gear_id: '' }, { ...payload, priority: 1.5 }]) {
+    assert.equal((await edit(original.id, invalid)).status, 400);
+  }
+  assert.equal((await edit(other.id, payload)).status, 404);
+  assert.deepEqual(mappings.list(78)[0], other);
+  assert.deepEqual(mappings.list(77).find(m => m.id === original.id), updated);
+});
+
 test('tracked segments accept ten IDs and reject eleven without changing saved segments', async (t) => {
   const signature = require('cookie-signature');
   const sessionStore = require('../src/session-store');
