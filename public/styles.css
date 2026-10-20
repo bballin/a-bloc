@@ -252,9 +252,11 @@ tr:last-child td { border-bottom: none; }
 .compact-table th, .compact-table td { padding: 8px 10px; }
 .compact-table tbody tr:hover td { background: rgb(255 255 255 / 2%); }
 .compact-table code { overflow-wrap: anywhere; }
-/* Name/Sensor absorbs spare width; other columns stay content-sized so data isn't spread apart. */
-#activitiesTable :is(th, td):not(:nth-child(2)),
-#mappingsTable :is(th, td):not(:first-child) { width: 1%; white-space: nowrap; }
+/* Spare width is shared by the two text columns; the rest stay content-sized. */
+#activitiesTable :is(th, td):is(:nth-child(1), :nth-child(4)),
+#mappingsTable :is(th, td):is(:nth-child(3), :nth-child(4)) { width: 1%; white-space: nowrap; }
+#activitiesTable :is(th, td):is(:nth-child(2), :nth-child(3)),
+#mappingsTable :is(th, td):is(:nth-child(1), :nth-child(2)) { width: 50%; }
 #activitiesTable td[colspan], #mappingsTable td[colspan] { width: auto; white-space: normal; }
 #mappingsTable th:last-child, #mappingsTable td:last-child { text-align: right; }
 #mappingsTable td:last-child [role="status"] { display: block; white-space: normal; }
@@ -266,7 +268,6 @@ tr:last-child td { border-bottom: none; }
 @media (max-width: 600px) {
   #gearPanel .card { padding: 14px; overflow-x: auto; }
   .compact-table th, .compact-table td { padding: 6px 4px; }
-  #activitiesTable td:nth-child(3), #mappingsTable td:nth-child(2) { white-space: normal; }
   .compact-table .table-actions, #mappingsTable td:last-child { white-space: normal; }
   #mappingsTable td select[name="edit_gear"] { min-width: 0; width: 100%; }
   .compact-table .table-actions .btn, #mappingsTable td:last-child .btn:not(.btn-icon) { display: block; width: 100%; margin-bottom: 4px; padding: 4px 8px; white-space: nowrap; }
