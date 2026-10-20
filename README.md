@@ -208,8 +208,9 @@ For example: `garmin:vector_3:12345`, `quarq:dzero:67890`, or
 When multiple mapped sensors appear in a FIT file, the mapping with the lowest
 priority number wins. Ties go to the most recently created mapping.
 
-Enable **Enable webhook gear updates** in **Configure** to process new activities
-automatically. Webhook gear updates deliberately replace an activity's existing
+**Enable webhook gear updates** in **Configure** is enabled by default to process
+new activities automatically. You can disable it; explicit opt-outs are preserved.
+Webhook gear updates deliberately replace an activity's existing
 gear when a matching mapping is found.
 
 ## Segmentation

@@ -150,7 +150,7 @@ router.post('/api/settings/strava-web', requireAuth, (req, res) => {
 
 router.get('/api/gear-webhook', requireAuth, (req, res) => {
   res.json({
-    enabled: settings.get(req.session.athleteId, 'gear_webhook_enabled') === '1',
+    enabled: settings.isGearWebhookEnabled(req.session.athleteId),
     callbackUrl: config.webhookCallbackUrl,
   });
 });

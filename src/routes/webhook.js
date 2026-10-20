@@ -19,7 +19,7 @@ function createWebhookRouter({ queue }) {
       && /^\d+$/.test(String(event.owner_id)) && /^\d+$/.test(String(event.object_id))
       && strava.getAthlete(event.owner_id)) {
       // Persist before acknowledging; Strava will not redeliver after a 200.
-      if (settings.get(event.owner_id, 'gear_webhook_enabled') === '1') {
+      if (settings.isGearWebhookEnabled(event.owner_id)) {
         queue.enqueue('gear', event.owner_id, event.object_id);
       }
       queue.enqueue('segment_counts', event.owner_id, event.object_id);

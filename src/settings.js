@@ -53,6 +53,11 @@ function remove(athleteId, key) {
   removeStatement.run(athleteId, key);
 }
 
+function isGearWebhookEnabled(athleteId) {
+  const value = get(athleteId, 'gear_webhook_enabled');
+  return value == null || value === '1';
+}
+
 // The Garmin login pause is app-wide: Garmin throttles by account/IP, not per Strava athlete.
 function getGarminLoginDisabledUntil() {
   const row = getAppStatement.get(GARMIN_LOGIN_DISABLED_KEY);
@@ -100,6 +105,7 @@ module.exports = {
   set,
   get,
   remove,
+  isGearWebhookEnabled,
   summary,
   getGarminLoginDisabledUntil,
   disableGarminLoginUntil,

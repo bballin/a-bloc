@@ -68,6 +68,11 @@ test('Strava activity webhooks are queued for known athletes only', async () => 
 
   enqueued.length = 0;
   assert.equal((await post(event)).status, 200);
+  assert.deepEqual(enqueued, [['gear', 77, 123], ['segment_counts', 77, 123]]);
+
+  settings.set(77, 'gear_webhook_enabled', '');
+  enqueued.length = 0;
+  await post(event);
   assert.deepEqual(enqueued, [['segment_counts', 77, 123]]);
 
   settings.set(77, 'gear_webhook_enabled', '1');
@@ -79,6 +84,7 @@ test('Strava activity webhooks are queued for known athletes only', async () => 
   assert.equal((await post({ ...event, owner_id: 5 })).status, 200);
   assert.equal((await post({ ...event, aspect_type: 'update' })).status, 200);
   assert.deepEqual(enqueued, []);
+  settings.remove(77, 'gear_webhook_enabled');
 });
 
 test('OAuth login redirects to Strava with the configured callback', async () => {
@@ -97,6 +103,16 @@ test('signed-in routes: FIT uploads are parsed and cleaned up, local segments an
   await new Promise((resolve, reject) => sessionStore.set('signed-in', { cookie: { originalMaxAge: 60_000 }, athleteId: 77 },
     error => (error ? reject(error) : resolve())));
   const cookie = `connect.sid=${encodeURIComponent(`s:${signature.sign('signed-in', config.sessionSecret)}`)}`;
+
+  const webhookState = async () => (await request('/api/gear-webhook', { headers: { cookie } })).json();
+  assert.equal((await webhookState()).enabled, true, 'webhook defaults to enabled');
+  for (const enabled of [false, true]) {
+    const saved = await request('/api/gear-webhook', {
+      method: 'POST', headers: { cookie }, body: JSON.stringify({ enabled }),
+    });
+    assert.deepEqual(await saved.json(), { enabled });
+    assert.equal((await webhookState()).enabled, enabled, 'explicit choice is preserved');
+  }
 
   const me = await (await fetch(`${baseUrl}/api/me`, { headers: { cookie } })).json();
   assert.deepEqual(me, { authenticated: true, athlete: { id: 77, firstname: 'Test', lastname: 'Rider' } });
