@@ -197,7 +197,10 @@ To configure a Strava web session:
 ## Gear mappings and automatic updates
 
 Use the **Inspect** card to upload a FIT file and discover sensor keys, then
-map each key to a piece of Strava gear. Keys have the form
+map each key to a piece of Strava gear. If a Garmin, Wahoo, COROS or Hammerhead
+connection is configured, **Fetch recent activities** lists the 10 most recent
+activities across those sources so you can inspect an original FIT file without
+downloading it yourself. Keys have the form
 `manufacturer:product_or_devicetype:antDeviceNumber`, normalized to lowercase.
 For example: `garmin:vector_3:12345`, `quarq:dzero:67890`, or
 `wahoo_fitness:tickr:0`.

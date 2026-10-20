@@ -1,9 +1,11 @@
 const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const multer = require('multer');
 const config = require('../config');
 const strava = require('../strava');
 const sync = require('../sync');
+const originalActivities = require('../original-activities');
 const mappings = require('../store/mappings');
 const processed = require('../store/processed');
 const { parseFit } = require('../fit');
@@ -76,6 +78,41 @@ router.post('/api/fit/inspect', requireAuth, upload.single('fit'), async (req, r
     });
   } catch (e) {
     res.status(400).json({ error: `Failed to parse FIT: ${e.message}` });
+  }
+});
+
+// The most recent activities across the connected original activity file sources.
+router.get('/api/originals/recent', requireAuth, async (req, res) => {
+  try {
+    res.json(await originalActivities.listRecent(req.session.athleteId));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Download one of those activities' original FIT and inspect it like an uploaded file.
+router.post('/api/originals/:source/:id/inspect', requireAuth, async (req, res) => {
+  const { source, id } = req.params;
+  let fetched;
+  try {
+    fetched = await originalActivities.downloadFit(req.session.athleteId, source, id);
+  } catch (e) {
+    const status = e instanceof originalActivities.OriginalActivityError || e.status === 429 ? e.status : 502;
+    return res.status(status).json({ error: e.message });
+  }
+  try {
+    const parsed = await parseFit(fetched.fitPath);
+    res.json({
+      filename: path.basename(fetched.fitPath),
+      source,
+      startTime: parsed.startTime,
+      sport: parsed.sport,
+      sensors: parsed.sensors,
+    });
+  } catch (e) {
+    res.status(400).json({ error: `Failed to parse FIT: ${e.message}` });
+  } finally {
+    fetched.cleanup();
   }
 });
 

@@ -48,6 +48,7 @@ async function init() {
   await Promise.all([loadGear(), loadMappings(), loadSettings(), loadGearWebhook()]);
 
   $('#inspectFile').onchange = onInspect;
+  $('#fetchOriginalActivities').onclick = onFetchOriginalActivities;
   $('#mappingForm').onsubmit = onSaveMapping;
   $('#refreshActivities').onclick = () => loadActivities(true);
   $('#loadMoreActivities').onclick = () => loadActivities();
@@ -751,6 +752,65 @@ async function onInspect(ev) {
     renderInspect(r);
   } catch (e) {
     $('#inspectResult').innerHTML = `<p class="status-error">${escapeHtml(e.message)}</p>`;
+  }
+}
+
+async function onFetchOriginalActivities() {
+  const button = $('#fetchOriginalActivities');
+  const out = $('#originalActivities');
+  button.disabled = true;
+  out.innerHTML = '<p class="muted">Fetching recent activities…</p>';
+  try {
+    const r = await api('/api/originals/recent');
+    renderOriginalActivities(r);
+  } catch (e) {
+    out.innerHTML = `<p class="status-error">${escapeHtml(e.message)}</p>`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderOriginalActivities({ connected, activities, errors }) {
+  const out = $('#originalActivities');
+  if (!connected.length) {
+    out.innerHTML = `<p class="status-error">An original activity file connection (Garmin, Wahoo, COROS or Hammerhead) is required.
+      See the <a href="#configurationPanel" data-open-config>Configure</a> page to set one up.</p>`;
+    out.querySelector('[data-open-config]').onclick = ev => {
+      ev.preventDefault();
+      switchTab('configurationPanel');
+    };
+    return;
+  }
+  const errorText = (errors || []).map(e =>
+    `<p class="status-error">${escapeHtml(e.sourceLabel)}: ${escapeHtml(e.message)}</p>`
+  ).join('');
+  const rows = activities.map(a => `
+    <tr>
+      <td>${a.startTime ? escapeHtml(new Date(a.startTime).toLocaleString()) : '<span class="muted">unknown</span>'}</td>
+      <td>${escapeHtml(a.name || '(unnamed)')}${a.sport ? `<div class="muted">${escapeHtml(a.sport)}</div>` : ''}</td>
+      <td>${escapeHtml(a.sourceLabel)}</td>
+      <td><button class="btn" type="button" data-original-source="${escapeHtml(a.source)}" data-original-id="${escapeHtml(a.id)}">Inspect</button></td>
+    </tr>
+  `).join('');
+  const table = rows
+    ? `<table><thead><tr><th>When</th><th>Name</th><th>Source</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+    : (errorText ? '' : '<p class="muted">No recent activities found.</p>');
+  out.innerHTML = errorText + table;
+  out.querySelectorAll('button[data-original-id]').forEach(b => {
+    b.onclick = () => onInspectOriginalActivity(b.dataset.originalSource, b.dataset.originalId, b);
+  });
+}
+
+async function onInspectOriginalActivity(source, id, button) {
+  button.disabled = true;
+  $('#inspectResult').innerHTML = '<p class="muted">Downloading and parsing…</p>';
+  try {
+    const r = await api(`/api/originals/${encodeURIComponent(source)}/${encodeURIComponent(id)}/inspect`, { method: 'POST' });
+    renderInspect(r);
+  } catch (e) {
+    $('#inspectResult').innerHTML = `<p class="status-error">${escapeHtml(e.message)}</p>`;
+  } finally {
+    button.disabled = false;
   }
 }
 

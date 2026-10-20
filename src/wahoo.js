@@ -124,13 +124,17 @@ function summaryFileUrl(workout) {
   return (summary && summary.file && summary.file.url) || null;
 }
 
+async function listWorkouts(athleteId, { perPage = 30 } = {}) {
+  const body = await api(athleteId, `/v1/workouts?page=1&per_page=${perPage}`);
+  return (body && body.workouts) || [];
+}
+
 /**
  * Find the Wahoo workout starting closest to `startTime` (within `windowMs`)
  * among the most recent `perPage` workouts.
  */
 async function findWorkoutByStartTime(athleteId, startTime, { perPage = 30, windowMs = DEFAULT_MATCH_WINDOW_MS } = {}) {
-  const body = await api(athleteId, `/v1/workouts?page=1&per_page=${perPage}`);
-  const workouts = (body && body.workouts) || [];
+  const workouts = await listWorkouts(athleteId, { perPage });
   return closestByStartTime(workouts, w => new Date(w.starts).getTime(), startTime, windowMs);
 }
 
@@ -153,6 +157,7 @@ module.exports = {
   getUser,
   disconnect,
   clearTokens,
+  listWorkouts,
   findWorkoutByStartTime,
   downloadOriginalFit,
 };

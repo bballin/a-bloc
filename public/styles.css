@@ -213,6 +213,9 @@ tr:last-child td { border-bottom: none; }
 }
 .sensor-row code { color: var(--accent-2); }
 
+.original-activities-actions { margin-top: 12px; }
+.original-activities-actions .muted { font-size: 13px; }
+
 .status-ok { color: var(--ok); }
 .status-error, .status-no_mapping, .status-no_activity { color: var(--err); }
 

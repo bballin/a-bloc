@@ -45,9 +45,11 @@ test('Garmin lockout status is public; Garmin actions require sign-in', async ()
 
 test('original file source settings require sign-in', async () => {
   for (const path of ['/api/settings/hammerhead', '/api/settings/coros', '/api/settings/coros/test',
-    '/api/settings/hammerhead/test', '/api/settings/wahoo/test', '/api/settings/wahoo/disconnect']) {
+    '/api/settings/hammerhead/test', '/api/settings/wahoo/test', '/api/settings/wahoo/disconnect',
+    '/api/originals/garmin/1/inspect']) {
     assert.equal((await request(path, { method: 'POST', body: '{}' })).status, 401, path);
   }
+  assert.equal((await request('/api/originals/recent')).status, 401);
   const wahooLogin = await request('/auth/wahoo/login', { redirect: 'manual' });
   assert.equal(wahooLogin.status, 302);
   assert.equal(wahooLogin.headers.get('location'), '/');
@@ -116,6 +118,14 @@ test('signed-in routes: FIT uploads are parsed and cleaned up, local segments an
   assert.equal(created.status, 200);
   const { mappings } = await (await fetch(`${baseUrl}/api/mappings`, { headers: { cookie } })).json();
   assert.deepEqual(mappings.map(m => [m.sensor_key, m.gear_name]), [['garmin:edge:1', 'Crux']]);
+
+  const recent = await fetch(`${baseUrl}/api/originals/recent`, { headers: { cookie } });
+  assert.deepEqual(await recent.json(), { connected: [], activities: [], errors: [] });
+  const notConnected = await fetch(`${baseUrl}/api/originals/garmin/123/inspect`, { method: 'POST', headers: { cookie } });
+  assert.equal(notConnected.status, 400);
+  assert.match((await notConnected.json()).error, /Garmin Connect is not connected/);
+  const unknownSource = await fetch(`${baseUrl}/api/originals/strava/123/inspect`, { method: 'POST', headers: { cookie } });
+  assert.equal(unknownSource.status, 400);
 
   const saved = await fetch(`${baseUrl}/api/settings/coros`, {
     method: 'POST', headers: { cookie, 'Content-Type': 'application/json' },

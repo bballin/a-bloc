@@ -144,6 +144,7 @@ module.exports = {
   assertLoginAllowed,
   isRateLimited,
   GarminLoginPausedError,
+  parseGarminGmt,
   findActivityByStartTime,
   downloadOriginalFit,
 };

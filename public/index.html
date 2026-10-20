@@ -73,8 +73,13 @@
 
         <div class="card">
           <h2>Inspect a FIT file</h2>
-          <p>Drop a FIT file to discover the sensors recorded in it. Use the sensor list below to build mappings to your Strava gear.</p>
+          <p>Drop a FIT file, or fetch one of your recent activities, to discover the sensors recorded in it. Use the sensor list below to build mappings to your Strava gear.</p>
           <input type="file" id="inspectFile" accept=".fit" />
+          <div class="row original-activities-actions">
+            <button class="btn" id="fetchOriginalActivities" type="button">Fetch recent activities</button>
+            <span class="muted">Latest 10 from your connected Garmin, Wahoo, COROS or Hammerhead account.</span>
+          </div>
+          <div id="originalActivities"></div>
           <div id="inspectResult"></div>
         </div>
 

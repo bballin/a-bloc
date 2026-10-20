@@ -142,6 +142,7 @@ module.exports = {
   isConfigured,
   getClient,
   testConnection,
+  listActivities,
   findActivityByStartTime,
   downloadOriginalFit,
   activityStartMs,
