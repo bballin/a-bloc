@@ -101,16 +101,6 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .card h2 { margin-top: 0; font-size: 16px; }
 .card p { color: var(--muted); margin-top: 0; }
 
-.gear-layout {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 16px;
-  align-items: start;
-}
-.gear-column { min-width: 0; }
-@media (max-width: 960px) {
-  .gear-layout { grid-template-columns: minmax(0, 1fr); }
-}
 .span-2 { grid-column: 1 / -1; }
 
 .settings-grid {
@@ -228,6 +218,12 @@ input[type="file"] { padding: 6px; max-width: 100%; }
 .mapping-form [name="gear_id"] { grid-area: gear; }
 .mapping-form [name="priority"] { grid-area: priority; }
 .mapping-form button { grid-area: save; }
+@media (min-width: 900px) {
+  .mapping-form {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1.5fr) minmax(0, 1.5fr) 80px auto;
+    grid-template-areas: "key label gear priority save";
+  }
+}
 @media (max-width: 700px) {
   .mapping-form {
     grid-template-columns: minmax(0, 1fr);
@@ -253,19 +249,26 @@ th { color: var(--muted); font-weight: 600; }
 tr:last-child td { border-bottom: none; }
 .nowrap, .table-actions { white-space: nowrap; }
 .table-actions { text-align: right; }
-.compact-table { width: max-content; max-width: 100%; }
-.compact-table th, .compact-table td { padding: 8px 6px; }
+.compact-table th, .compact-table td { padding: 8px 10px; }
+.compact-table tbody tr:hover td { background: rgb(255 255 255 / 2%); }
 .compact-table code { overflow-wrap: anywhere; }
-#mappingsTable td:last-child { white-space: nowrap; text-align: right; }
+/* Name/Sensor absorbs spare width; other columns stay content-sized so data isn't spread apart. */
+#activitiesTable :is(th, td):not(:nth-child(2)),
+#mappingsTable :is(th, td):not(:first-child) { width: 1%; white-space: nowrap; }
+#activitiesTable td[colspan], #mappingsTable td[colspan] { width: auto; white-space: normal; }
+#mappingsTable th:last-child, #mappingsTable td:last-child { text-align: right; }
 #mappingsTable td:last-child [role="status"] { display: block; white-space: normal; }
 #mappingsTable .btn { padding: 4px 10px; font-size: 13px; }
 #mappingsTable td input, #mappingsTable td select { width: 100%; min-width: 0; margin-top: 4px; }
+#mappingsTable td select[name="edit_gear"] { width: auto; min-width: 140px; }
 #mappingsTable td input[type="number"] { width: 64px; margin-top: 0; }
 #mappingsTable td:nth-child(2) select { margin-top: 0; }
 @media (max-width: 600px) {
   #gearPanel .card { padding: 14px; overflow-x: auto; }
   .compact-table th, .compact-table td { padding: 6px 4px; }
+  #activitiesTable td:nth-child(3), #mappingsTable td:nth-child(2) { white-space: normal; }
   .compact-table .table-actions, #mappingsTable td:last-child { white-space: normal; }
+  #mappingsTable td select[name="edit_gear"] { min-width: 0; width: 100%; }
   .compact-table .table-actions .btn, #mappingsTable td:last-child .btn:not(.btn-icon) { display: block; width: 100%; margin-bottom: 4px; padding: 4px 8px; white-space: nowrap; }
 }
 
