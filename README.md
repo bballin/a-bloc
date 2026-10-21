@@ -86,11 +86,10 @@ a throwaway database).
    service has a custom build setup that skips dependency installation, set its
    **Build Command** to `npm ci --omit=dev`. You can also set the **Start
    Command** to `node src/server.js` instead of using the script.
-3. Add the production values from `.env.railway.example` under the Railway
-   service's **Variables**. Railway does not automatically load that example
-   file; it documents the values to configure in the dashboard. Use the
-   production Strava API app's credentials and generate production-only
-   secrets:
+3. Add the production values below under the Railway service's
+   **Variables**. Keep any local notes of these values in an untracked file
+   such as `.env.railway.example` (ignored by git). Use the production Strava
+   API app's credentials and generate production-only secrets:
    - `STRAVA_CLIENT_ID`
    - `STRAVA_CLIENT_SECRET`
    - `SESSION_SECRET` — a long random value of at least 16 characters. Keep it
