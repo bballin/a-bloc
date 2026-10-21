@@ -1,4 +1,5 @@
 const { cleanup } = require('./helpers/temp-db.cjs').useTempDatabase();
+process.env.GARMIN_RELAY_URL = '';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const config = require('../src/config');
@@ -38,9 +39,25 @@ test('Garmin lockout status is public; Garmin actions require sign-in', async ()
   assert.equal(status.status, 200);
   assert.equal((await status.json()).loginDisabledUntil, until);
   assert.equal(status.headers.get('cache-control'), 'no-store');
+  const body = await (await request('/api/garmin/status')).json();
+  assert.equal(body.relayConfigured, false);
+  assert.equal(body.relayAvailable, null);
+  assert.equal(body.loginAvailable, false, 'the existing lockout still prevents login without a relay');
 
   assert.equal((await request('/api/settings/garmin/test', { method: 'POST' })).status, 401);
   assert.equal((await request('/api/settings')).status, 401);
+});
+
+test('public Garmin status reports a relay outage without exposing relay configuration secrets', async (t) => {
+  const garmin = require('../src/garmin');
+  const expected = {
+    relayConfigured: true, relayAvailable: false, loginDisabledUntil: null, loginAvailable: false,
+  };
+  t.mock.method(garmin, 'getLoginStatus', async () => expected);
+  const response = await request('/api/garmin/status');
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), expected);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
 });
 
 test('original file source settings require sign-in', async () => {

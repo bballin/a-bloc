@@ -39,6 +39,39 @@ function isRelayConfigured() {
   return !!config.garminRelay.url;
 }
 
+async function getLoginStatus() {
+  const relayConfigured = isRelayConfigured();
+  let relayAvailable = null;
+  let loginDisabledUntil = settings.getGarminLoginDisabledUntil();
+  if (relayConfigured) {
+    try {
+      const response = await fetch(`${config.garminRelay.url}/health`, {
+        headers: { Authorization: `Bearer ${config.garminRelay.secret}` },
+        signal: AbortSignal.timeout(5000),
+        redirect: 'error',
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      if (data.ok !== true || !(data.pausedUntil === null || Number.isSafeInteger(data.pausedUntil))) {
+        throw new Error('Invalid relay health response');
+      }
+      relayAvailable = true;
+      if (data.pausedUntil > Date.now()) {
+        loginDisabledUntil = Math.max(loginDisabledUntil || 0, data.pausedUntil);
+      }
+    } catch (error) {
+      console.warn('[garmin] Relay health check failed:', error.message);
+      relayAvailable = false;
+    }
+  }
+  return {
+    relayConfigured,
+    relayAvailable,
+    loginDisabledUntil,
+    loginAvailable: relayAvailable !== false && !loginDisabledUntil,
+  };
+}
+
 async function relayRequest(path, body) {
   let response;
   try {
@@ -208,6 +241,7 @@ function cleanupDir(dir) {
 module.exports = {
   getClient,
   isRelayConfigured,
+  getLoginStatus,
   assertLoginAllowed,
   isRateLimited,
   GarminLoginPausedError,

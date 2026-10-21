@@ -11,6 +11,10 @@ let activityPage = 0;
 let activitiesLoading = false;
 let garminLoginDisabledUntil = null;
 let garminPauseTimer = null;
+let garminRelayAvailable = false;
+let garminRelayPausedUntil = null;
+let garminStatusTimer = null;
+let garminTestInProgress = false;
 let signedIn = false;
 
 async function init() {
@@ -19,6 +23,7 @@ async function init() {
   });
   $('#garminForm').onsubmit = onSaveGarmin;
   $('#garminTest').onclick = onTestGarmin;
+  updateGarminPauseWarning(garminLoginDisabledUntil);
   $('#wahooConnect').onclick = () => { window.location.href = '/auth/wahoo/login'; };
   $('#wahooTest').onclick = onTestWahoo;
   $('#wahooDisconnect').onclick = onDisconnectWahoo;
@@ -541,28 +546,47 @@ async function onTestProvider(provider, button) {
   }
 }
 async function loadGarminLoginStatus() {
+  clearTimeout(garminStatusTimer);
+  const status = $('#garminRelayStatus');
   try {
-    const { loginDisabledUntil } = await api('/api/garmin/status');
+    const { relayConfigured, relayAvailable, loginDisabledUntil } = await api('/api/garmin/status');
+    garminRelayAvailable = relayAvailable !== false;
+    garminRelayPausedUntil = loginDisabledUntil;
+    status.textContent = !garminRelayAvailable
+      ? 'Garmin login configuration is temporarily offline. The Garmin relay is unavailable. Existing connections may still work.'
+      : relayConfigured
+        ? 'Garmin relay is online.'
+        : 'Garmin login uses a direct connection (no relay configured).';
+    status.className = garminRelayAvailable ? 'muted' : 'status-error';
     updateGarminPauseWarning(loginDisabledUntil);
   } catch (e) {
     console.error('Failed to load Garmin login status:', e);
+    garminRelayAvailable = false;
+    status.textContent = 'Unable to check Garmin login availability. Configuration is temporarily offline; retrying automatically.';
+    status.className = 'status-error';
+    updateGarminPauseWarning(garminLoginDisabledUntil);
+  } finally {
+    garminStatusTimer = setTimeout(loadGarminLoginStatus, 30_000);
   }
 }
 function isGarminLoginPaused() {
   return Number.isFinite(garminLoginDisabledUntil) && garminLoginDisabledUntil > Date.now();
 }
 function updateGarminPauseWarning(disabledUntil) {
-  garminLoginDisabledUntil = disabledUntil;
+  garminLoginDisabledUntil = Math.max(disabledUntil || 0, garminRelayPausedUntil || 0) || null;
   const warning = $('#garminPauseWarning');
   const disabled = isGarminLoginPaused();
   warning.classList.toggle('hidden', !disabled);
   warning.textContent = disabled
-    ? `Garmin access is temporarily disabled until ${new Date(disabledUntil).toLocaleString()}.`
+    ? `Garmin access is temporarily disabled until ${new Date(garminLoginDisabledUntil).toLocaleString()}.`
     : '';
-  $('#garminTest').disabled = disabled || !signedIn;
+  $('#garminForm').querySelectorAll('input, button[type="submit"]').forEach(control => {
+    control.disabled = !signedIn || !garminRelayAvailable;
+  });
+  $('#garminTest').disabled = disabled || !signedIn || !garminRelayAvailable || garminTestInProgress;
   clearTimeout(garminPauseTimer);
   // setTimeout overflows above ~24.8 days; re-check on the next page load instead.
-  const remainingMs = disabled ? disabledUntil - Date.now() : 0;
+  const remainingMs = disabled ? garminLoginDisabledUntil - Date.now() : 0;
   if (disabled && remainingMs < 2 ** 31 - 1) {
     garminPauseTimer = setTimeout(() => updateGarminPauseWarning(null), remainingMs);
   }
@@ -598,6 +622,7 @@ async function onSaveGarmin(ev) {
 async function onTestGarmin() {
   const button = $('#garminTest');
   const status = $('#garminStatus');
+  garminTestInProgress = true;
   button.disabled = true;
   status.textContent = 'Logging in…';
   status.className = 'muted';
@@ -609,7 +634,8 @@ async function onTestGarmin() {
     status.className = 'status-error';
     if (e.status === 429) await loadGarminLoginStatus();
   } finally {
-    button.disabled = isGarminLoginPaused();
+    garminTestInProgress = false;
+    updateGarminPauseWarning(garminLoginDisabledUntil);
   }
 }
 

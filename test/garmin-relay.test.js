@@ -68,6 +68,53 @@ test('the relay validates input and maps Garmin credential errors', async () => 
   assert.match((await res.json()).error, /Ticket not found/);
 });
 
+test('login status checks authenticated relay health without attempting Garmin login', async () => {
+  calls.length = 0;
+  assert.deepEqual(await garmin.getLoginStatus(), {
+    relayConfigured: true,
+    relayAvailable: true,
+    loginDisabledUntil: null,
+    loginAvailable: true,
+  });
+  assert.deepEqual(calls, []);
+});
+
+test('relay health failures mark login configuration offline and recovery restores it', async (t) => {
+  const actualFetch = global.fetch;
+  t.mock.method(console, 'warn', () => {});
+  for (const outcome of [
+    () => { throw new Error('connection refused'); },
+    () => { throw new DOMException('Timed out', 'TimeoutError'); },
+    () => new Response('{}', { status: 401 }),
+    () => new Response('{}', { status: 502 }),
+    () => new Response('not json'),
+    () => new Response(JSON.stringify({ ok: true })),
+    () => new Response(JSON.stringify({ ok: false, pausedUntil: null })),
+  ]) {
+    const mock = t.mock.method(global, 'fetch', async (url, options) => {
+      assert.equal(url, `${relayUrl}/health`);
+      assert.equal(options.headers.Authorization, `Bearer ${SECRET}`);
+      assert.ok(options.signal instanceof AbortSignal);
+      return outcome();
+    });
+    const status = await garmin.getLoginStatus();
+    assert.equal(status.relayAvailable, false);
+    assert.equal(status.loginAvailable, false);
+    mock.mock.restore();
+  }
+  assert.equal(global.fetch, actualFetch);
+  assert.equal((await garmin.getLoginStatus()).loginAvailable, true);
+});
+
+test('an online relay can still report logins paused', async (t) => {
+  const until = Date.now() + 60_000;
+  t.mock.method(global, 'fetch', async () => new Response(JSON.stringify({ ok: true, pausedUntil: until })));
+  const status = await garmin.getLoginStatus();
+  assert.equal(status.relayAvailable, true);
+  assert.equal(status.loginDisabledUntil, until);
+  assert.equal(status.loginAvailable, false);
+});
+
 test('A Bloc logs in to Garmin through the relay and stores the tokens', async () => {
   settings.set(5, 'garmin_username', 'rider@example.com');
   settings.set(5, 'garmin_password', 'pw');

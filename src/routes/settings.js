@@ -33,8 +33,12 @@ router.get('/api/settings', requireAuth, (req, res) => {
 });
 
 // Public so the Garmin lockout is enforced in the UI whether or not a Strava user is signed in.
-router.get('/api/garmin/status', (req, res) => {
-  res.json({ loginDisabledUntil: settings.getGarminLoginDisabledUntil() });
+router.get('/api/garmin/status', async (req, res, next) => {
+  try {
+    res.json(await garmin.getLoginStatus());
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.post('/api/settings/garmin', requireAuth, (req, res) => {

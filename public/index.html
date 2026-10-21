@@ -254,6 +254,7 @@
               <h3>Garmin Connect</h3>
               <p class="muted">Recommended if your rides come from a Garmin device. Email/password are stored encrypted; OAuth tokens are cached and refreshed automatically.</p>
               <p id="garminPauseWarning" class="status-error hidden" role="alert"></p>
+              <p id="garminRelayStatus" class="muted" role="status">Checking Garmin login availability...</p>
               <form id="garminForm" class="stack" method="post" action="/api/settings/garmin">
                 <input type="email" name="username" placeholder="Garmin email" autocomplete="off" />
                 <input type="password" name="password" placeholder="Garmin password" autocomplete="new-password" />

@@ -174,6 +174,17 @@ every request, runs logins one at a time at least five seconds apart, and
 stops contacting Garmin for 24 hours after a rate limit (the hosted app
 applies its own pause too).
 
+The Garmin configuration panel checks the relay's authenticated `/health`
+endpoint with a five-second timeout and rechecks every 30 seconds. If the
+relay is unreachable, rejects authentication, or returns an invalid response,
+it shows "Garmin login configuration is temporarily offline" and disables
+credential editing, Save, and Test login until the relay recovers. Existing
+stored connections are not removed. An online relay's cooldown is displayed
+separately and still prevents login attempts. Health checks never attempt a
+Garmin login; an online relay does not guarantee Garmin will accept a login.
+Without a configured relay, the panel identifies the direct connection mode
+rather than claiming to have checked Garmin itself.
+
 Trade-offs to be aware of: users' Garmin passwords pass through the relay
 machine (it does not store or log them), every user's login shares your home
 IP address, so a large number of new logins can still be rate-limited, and
