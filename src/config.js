@@ -43,6 +43,23 @@ if (isRailway && railwayDrainSeconds <= 0) {
   warnings.push('RAILWAY_DEPLOYMENT_DRAINING_SECONDS is not set. Railway will SIGKILL this process immediately after SIGTERM, so graceful shutdown cannot complete.');
 }
 
+const garminRelayUrl = (env.GARMIN_RELAY_URL || '').trim().replace(/\/+$/, '');
+const garminRelaySecret = env.GARMIN_RELAY_SECRET || '';
+if (garminRelayUrl) {
+  let parsed;
+  try { parsed = new URL(garminRelayUrl); } catch { throw new Error('GARMIN_RELAY_URL must be a valid URL.'); }
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
+  // Garmin passwords travel to the relay, so only loopback may use plain HTTP.
+  if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback)) {
+    throw new Error('GARMIN_RELAY_URL must use https:// (http:// is only allowed for localhost).');
+  }
+  if (garminRelaySecret.length < 32) {
+    throw new Error('GARMIN_RELAY_SECRET must be set (at least 32 characters) when GARMIN_RELAY_URL is set.');
+  }
+} else if (isRailway) {
+  warnings.push('GARMIN_RELAY_URL is not set. Garmin usually blocks logins from cloud servers; see "Garmin login relay" in the README.');
+}
+
 module.exports = Object.freeze({
   isRailway,
   isProduction,
@@ -64,6 +81,10 @@ module.exports = Object.freeze({
     clientId: env.WAHOO_CLIENT_ID || '',
     clientSecret: env.WAHOO_CLIENT_SECRET || '',
     callbackUrl: `${appBaseUrl}/auth/wahoo/callback`,
+  }),
+  garminRelay: Object.freeze({
+    url: garminRelayUrl,
+    secret: garminRelaySecret,
   }),
   dataDir,
   uploadDir: path.join(__dirname, '..', 'uploads'),

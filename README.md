@@ -38,6 +38,8 @@ You can process activities in four ways:
   original-file sources.
 - `public/` — static front end; `common.js` holds the shared `api()` and
   `escapeHtml()` helpers.
+- `relay/garmin-relay.js` — optional, separately run Garmin login relay (reads
+  its own environment variables); see [Garmin login relay](#garmin-login-relay).
 - `test/` — `node:test` suites (`npm test`).
 
 ## Run locally
@@ -133,6 +135,52 @@ credentials in Railway, and `http://localhost:3000` with local credentials in
 your local `.env`. If you reuse one Strava API app, its Authorization Callback
 Domain must be changed when switching environments.
 
+### Garmin login relay
+
+Garmin's sign-in page (`sso.garmin.com`) sits behind Cloudflare, which
+rate-limits or blocks logins from cloud-provider IP addresses such as
+Railway's. Each failed attempt can extend Garmin's lockout. Only the initial
+login needs that page: afterwards the app uses the resulting OAuth tokens
+against `connectapi.garmin.com`, renewing the OAuth2 token with the long-lived
+OAuth1 token.
+
+The relay is a small service that performs just the Garmin login from a
+machine on a residential connection (for example a home PC or Raspberry Pi)
+and returns the OAuth tokens to the hosted app, which stores them encrypted
+as usual. Users still enter their Garmin email and password in the hosted
+app; nothing is copied by hand.
+
+1. On the home machine, clone this repository, run `npm ci --omit=dev`, and
+   create a `.env` containing a long random `GARMIN_RELAY_SECRET` (at least 32
+   characters). Optionally set `GARMIN_RELAY_PORT` (default `8787`) and
+   `GARMIN_RELAY_HOST` (default `127.0.0.1`).
+2. Start it with `npm run garmin-relay` and keep it running (for example as a
+   Windows scheduled task or a systemd service).
+3. Publish it over HTTPS without opening a router port, for example with a
+   named [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+   or [Tailscale Funnel](https://tailscale.com/kb/1223/funnel), pointing at
+   `http://127.0.0.1:8787`. Use a stable hostname; quick tunnels change URL on
+   every restart.
+4. In Railway, set `GARMIN_RELAY_URL` to the public HTTPS URL and
+   `GARMIN_RELAY_SECRET` to the same secret. The app refuses to start if the
+   URL is not HTTPS (plain HTTP is only accepted for `localhost`) or the secret
+   is too short.
+
+With the relay configured, every new Garmin login goes through it. Token
+renewals are tried directly from the server first and fall back to the relay
+if Garmin rejects them, so the relay only has to be online when a user
+connects or a renewal is blocked. The relay requires the shared secret on
+every request, runs logins one at a time at least five seconds apart, and
+stops contacting Garmin for 24 hours after a rate limit (the hosted app
+applies its own pause too).
+
+Trade-offs to be aware of: users' Garmin passwords pass through the relay
+machine (it does not store or log them), every user's login shares your home
+IP address, so a large number of new logins can still be rate-limited, and
+the login remains an unofficial interface. For a public service, Garmin's
+official [Connect Developer Program](https://developer.garmin.com/gc-developer-program/)
+avoids handling passwords entirely.
+
 ## Strava permissions
 
 The app requests these scopes:
@@ -158,7 +206,9 @@ is checked first; the others follow in this order:
    [`garmin-connect`](https://www.npmjs.com/package/garmin-connect) library.
    Provide your Garmin email and password. If Garmin rate-limits a login, new
    Garmin logins are paused globally until the cooldown expires; existing
-   cached OAuth tokens remain usable.
+   cached OAuth tokens remain usable. Garmin usually blocks logins from cloud
+   servers, so hosted deployments should use the
+   [Garmin login relay](#garmin-login-relay).
 2. **Wahoo** uses Wahoo's official
    [Cloud API](https://cloud-api.wahooligan.com/). The server operator
    registers an app at <https://developers.wahooligan.com>, sets its redirect

@@ -3,9 +3,11 @@ const path = require('path');
 const os = require('os');
 const AdmZip = require('adm-zip');
 const { GarminConnect } = require('garmin-connect');
+const config = require('./config');
 const settings = require('./settings');
 
 const LOGIN_RATE_LIMIT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const RELAY_TIMEOUT_MS = 90 * 1000;
 
 class GarminLoginPausedError extends Error {
   constructor(message, disabledUntil) {
@@ -33,9 +35,73 @@ function assertLoginAllowed() {
   }
 }
 
+function isRelayConfigured() {
+  return !!config.garminRelay.url;
+}
+
+async function relayRequest(path, body) {
+  let response;
+  try {
+    response = await fetch(`${config.garminRelay.url}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.garminRelay.secret}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw new Error(`Garmin login relay is unreachable (${error.message}).`);
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(`Garmin login relay: ${data.error || `HTTP ${response.status}`}`);
+    // Lets isRateLimited() apply the normal cooldown when Garmin throttles the relay.
+    error.response = { status: response.status };
+    throw error;
+  }
+  return data;
+}
+
+async function loginForTokens(username, password) {
+  if (isRelayConfigured()) {
+    const { oauth1, oauth2 } = await relayRequest('/login', { username, password });
+    if (!oauth1 || !oauth2) throw new Error('Garmin login relay returned no OAuth tokens.');
+    return { oauth1, oauth2 };
+  }
+  const client = new GarminConnect({ username, password });
+  await client.login();
+  return { oauth1: client.client.oauth1Token, oauth2: client.client.oauth2Token };
+}
+
+function storeTokens(athleteId, oauth1, oauth2) {
+  settings.set(athleteId, 'garmin_oauth1', JSON.stringify(oauth1));
+  settings.set(athleteId, 'garmin_oauth2', JSON.stringify(oauth2));
+}
+
+// The library refreshes expired OAuth2 tokens itself (before requests and on 401s).
+// Persist the result, and fall back to the relay if Garmin rejects this server.
+function attachTokenRefresh(athleteId, client) {
+  const http = client.client;
+  const refreshDirect = http.refreshOauth2Token.bind(http);
+  http.refreshOauth2Token = async () => {
+    try {
+      await refreshDirect();
+    } catch (error) {
+      if (!isRelayConfigured()) throw error;
+      const { oauth2 } = await relayRequest('/refresh', { oauth1: http.oauth1Token });
+      if (!oauth2) throw new Error('Garmin login relay returned no OAuth2 token.');
+      http.oauth2Token = oauth2;
+    }
+    storeTokens(athleteId, http.oauth1Token, http.oauth2Token);
+  };
+}
+
 /**
  * Returns a logged-in GarminConnect client for the athlete, or null if
- * Garmin is not configured. Reuses stored OAuth tokens when possible.
+ * Garmin is not configured. Reuses stored OAuth tokens when possible; a fresh
+ * login goes through the Garmin login relay when GARMIN_RELAY_URL is set.
  */
 async function getClient(athleteId) {
   const username = settings.get(athleteId, 'garmin_username');
@@ -43,6 +109,7 @@ async function getClient(athleteId) {
   if (!username || !password) return null;
 
   const client = new GarminConnect({ username, password });
+  attachTokenRefresh(athleteId, client);
 
   const oauth1Raw = settings.get(athleteId, 'garmin_oauth1');
   const oauth2Raw = settings.get(athleteId, 'garmin_oauth2');
@@ -57,8 +124,9 @@ async function getClient(athleteId) {
   }
   if (!restored) {
     assertLoginAllowed();
+    let tokens;
     try {
-      await client.login();
+      tokens = await loginForTokens(username, password);
     } catch (error) {
       if (!isRateLimited(error)) throw error;
       const disabledUntil = Date.now() + LOGIN_RATE_LIMIT_COOLDOWN_MS;
@@ -69,11 +137,9 @@ async function getClient(athleteId) {
       );
     }
 
-    const o1 = client.client && client.client.oauth1Token;
-    const o2 = client.client && client.client.oauth2Token;
-    if (!o1 || !o2) throw new Error('Garmin login completed without returning reusable OAuth tokens.');
-    settings.set(athleteId, 'garmin_oauth1', JSON.stringify(o1));
-    settings.set(athleteId, 'garmin_oauth2', JSON.stringify(o2));
+    if (!tokens.oauth1 || !tokens.oauth2) throw new Error('Garmin login completed without returning reusable OAuth tokens.');
+    client.loadToken(tokens.oauth1, tokens.oauth2);
+    storeTokens(athleteId, tokens.oauth1, tokens.oauth2);
   }
   return client;
 }
@@ -141,6 +207,7 @@ function cleanupDir(dir) {
 
 module.exports = {
   getClient,
+  isRelayConfigured,
   assertLoginAllowed,
   isRateLimited,
   GarminLoginPausedError,

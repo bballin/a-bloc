@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "garmin-relay": "node relay/garmin-relay.js",
     "test": "node --test"
   },
   "engines": {
