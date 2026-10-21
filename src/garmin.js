@@ -83,6 +83,7 @@ async function relayRequest(path, body) {
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
+      redirect: 'error',
     });
   } catch (error) {
     throw new Error(`Garmin login relay is unreachable (${error.message}).`);

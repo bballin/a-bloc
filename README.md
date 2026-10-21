@@ -126,6 +126,19 @@ a throwaway database).
    can be lost when Railway replaces it.
 6. Deploy, open the public app URL, and connect your Strava account.
 
+Production requires an HTTPS `APP_BASE_URL`. HTTP page requests redirect to
+that address; HTTP submissions are rejected rather than replaying passwords.
+Session cookies are Secure and HTTPS responses enable HSTS. The app trusts
+one TLS-terminating reverse proxy (as on Railway); keep the Node port private
+and ensure that proxy sets `X-Forwarded-Proto` itself.
+
+The browser's "connection is not secure" password-field warning concerns the
+page URL, not the server-to-server Garmin relay connection. Open the app using
+its valid HTTPS URL. Local development still allows HTTP; if you want to enter
+passwords locally without that warning, serve the app through a trusted HTTPS
+endpoint as well (for example, a separate Tailscale Serve endpoint). Do not
+disable browser warnings or bypass certificate validation.
+
 Railway provides `PORT`; the app binds to `0.0.0.0` and uses that port
 automatically. To use Strava webhooks, create the subscription from the app
 after deployment. Strava requires a public HTTPS callback URL, and permits one

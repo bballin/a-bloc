@@ -17,6 +17,12 @@ const isRailway = !!(env.RAILWAY_ENVIRONMENT_NAME || env.RAILWAY_PROJECT_ID);
 const isProduction = isRailway || env.NODE_ENV === 'production';
 const port = intFromEnv('PORT', 3000);
 const appBaseUrl = (env.APP_BASE_URL || `http://localhost:${port}`).replace(/\/+$/, '');
+if (isProduction) {
+  const publicUrl = new URL(appBaseUrl);
+  if (publicUrl.protocol !== 'https:' || publicUrl.username || publicUrl.password) {
+    throw new Error('APP_BASE_URL must be a public HTTPS URL in production.');
+  }
+}
 const railwayDrainSeconds = intFromEnv('RAILWAY_DEPLOYMENT_DRAINING_SECONDS', 0);
 const warnings = [];
 

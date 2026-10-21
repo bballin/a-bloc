@@ -115,7 +115,12 @@ test('an online relay can still report logins paused', async (t) => {
   assert.equal(status.loginAvailable, false);
 });
 
-test('A Bloc logs in to Garmin through the relay and stores the tokens', async () => {
+test('A Bloc logs in to Garmin through the relay and stores the tokens', async (t) => {
+  const actualFetch = global.fetch;
+  t.mock.method(global, 'fetch', (url, options) => {
+    assert.equal(options.redirect, 'error', 'credential requests must not follow relay redirects');
+    return actualFetch(url, options);
+  });
   settings.set(5, 'garmin_username', 'rider@example.com');
   settings.set(5, 'garmin_password', 'pw');
   calls.length = 0;
