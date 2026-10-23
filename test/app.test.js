@@ -220,10 +220,15 @@ test('signed-in routes: FIT uploads are parsed and cleaned up, local segments an
   assert.deepEqual(await (await putTemplate('{segment}: {count_ordinal} ride')).json(),
     { template: '{segment}: {count_ordinal} ride', isDefault: false });
   assert.deepEqual(await (await putTemplate('')).json(), { template: '{segment}: {count} {completions}', isDefault: true });
+
+  require('../src/store/segment-counts').recordEvent(77, '555', 'updated', 'Climb: 4');
+  const events = await (await fetch(`${baseUrl}/api/segment-counts/events`, { headers: { cookie } })).json();
+  assert.deepEqual(events.events.map(event => [event.activity_id, event.status]), [['555', 'updated']]);
 });
 
 test('segment-count template changes require sign-in', async () => {
   assert.equal((await request('/api/segment-counts/template', { method: 'PUT', body: '{"template":"x"}' })).status, 401);
+  assert.equal((await request('/api/segment-counts/events')).status, 401);
 });
 
 test('mapping edits update editable fields only and are scoped to the signed-in athlete', async () => {

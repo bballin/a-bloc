@@ -45,6 +45,10 @@ router.get('/api/segment-counts', requireAuth, async (req, res) => {
   }
 });
 
+router.get('/api/segment-counts/events', requireAuth, (req, res) => {
+  res.json({ events: store.listRecentEvents(req.session.athleteId) });
+});
+
 router.put('/api/segment-counts/template', requireAuth, (req, res) => {
   const template = req.body && req.body.template;
   const error = segmentTemplate.validateTemplate(template);

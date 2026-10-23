@@ -74,6 +74,33 @@ test('a job interrupted by shutdown is retried after its lease expires', async (
   assert.equal(jobs()[0].status, 'done');
 });
 
+test('a slow job of one kind does not delay jobs of another kind', async () => {
+  let releaseGear;
+  const seen = [];
+  const { queue, jobs } = setup({
+    gear: (athleteId, activityId) => {
+      seen.push(['gear', activityId]);
+      return new Promise(resolve => { releaseGear = resolve; });
+    },
+    segment_counts: async (athleteId, activityId) => { seen.push(['segment_counts', activityId]); },
+  });
+  queue.start();
+  queue.enqueue('gear', 1, 1);
+  queue.enqueue('segment_counts', 1, 1);
+  queue.enqueue('gear', 1, 2);
+  queue.enqueue('segment_counts', 1, 2);
+  await settle();
+  assert.deepEqual(seen, [['gear', '1'], ['segment_counts', '1'], ['segment_counts', '2']]);
+  assert.deepEqual(jobs().map(job => [job.kind, job.status]), [
+    ['gear', 'running'], ['segment_counts', 'done'], ['gear', 'pending'], ['segment_counts', 'done'],
+  ]);
+
+  const stopped = queue.stop();
+  releaseGear();
+  await stopped;
+  assert.deepEqual(jobs().map(job => job.status), ['done', 'done', 'pending', 'done']);
+});
+
 test('stop() waits for the in-progress job and claims nothing new', async () => {
   let release;
   const order = [];

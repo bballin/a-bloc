@@ -201,6 +201,26 @@ function renderEvents(events) {
   });
 }
 
+const EVENTS_POLL_MS = 15 * 1000;
+let eventsPoll = null;
+
+// Webhook deliveries are processed in the background, so keep the table current without a manual refresh.
+async function pollEvents() {
+  if (eventsPoll || document.hidden) return;
+  eventsPoll = api('/api/segment-counts/events')
+    .then(data => renderEvents(data.events || []))
+    .catch(() => {})
+    .finally(() => { eventsPoll = null; });
+  await eventsPoll;
+}
+
+function startEventsPolling() {
+  setInterval(pollEvents, EVENTS_POLL_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) pollEvents();
+  });
+}
+
 async function loadConfiguration() {
   const data = await api('/api/segment-counts');
   renderInputs(data.segments || []);
@@ -321,6 +341,7 @@ async function initialize() {
   $('#refreshEvents').addEventListener('click', refreshEvents);
   const tasks = [loadConfiguration()];
   if (subscriptionStatus) tasks.push(loadSubscription());
+  startEventsPolling();
   await Promise.all(tasks);
 }
 

@@ -74,6 +74,32 @@ test('isRateLimited recognises Garmin throttling responses', () => {
   assert.equal(garmin.isRateLimited(new Error('bad password')), false);
 });
 
+test('recent segment-count events include webhook deliveries still in the queue', () => {
+  const db = require('../src/db');
+  const store = require('../src/store/segment-counts');
+  const insertJob = db.prepare(`
+    INSERT INTO webhook_jobs (kind, athlete_id, activity_id, status, attempts, run_after_ms, last_error, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)
+  `);
+  const now = Math.floor(Date.now() / 1000);
+  store.recordEvent(5, '100', 'updated', 'Climb: 3');
+  store.recordEvent(5, '101', 'error', 'Strava timed out');
+  insertJob.run('segment_counts', 5, '101', 'pending', 1, 'Strava timed out', now + 1, now + 1);
+  insertJob.run('segment_counts', 5, '102', 'pending', 0, null, now + 2, now + 2);
+  insertJob.run('segment_counts', 5, '103', 'running', 1, null, now + 3, now + 3);
+  insertJob.run('segment_counts', 5, '104', 'done', 1, null, now + 4, now + 4);
+  insertJob.run('gear', 5, '105', 'pending', 0, null, now + 5, now + 5);
+  insertJob.run('segment_counts', 6, '106', 'pending', 0, null, now + 6, now + 6);
+
+  assert.deepEqual(store.listRecentEvents(5).map(event => [event.activity_id, event.status, event.message]), [
+    ['103', 'processing', 'Updating segment counts...'],
+    ['102', 'queued', 'Waiting to be processed.'],
+    ['101', 'queued', 'Retrying after error: Strava timed out'],
+    ['100', 'updated', 'Climb: 3'],
+  ]);
+  assert.equal(store.listRecentEvents(5, 2).length, 2);
+});
+
 test('session store persists, expires and destroys sessions', async () => {
   const call = (method, ...args) => new Promise((resolve, reject) => {
     sessionStore[method](...args, (error, value) => (error ? reject(error) : resolve(value)));

@@ -20,7 +20,9 @@ You can process activities in four ways:
   connected source answers but none has the activity yet (for example, the
   device has not finished syncing), the job is retried. Failed jobs
   are retried up to three times, and jobs interrupted by a restart resume on
-  the next start.
+  the next start. Gear and segment-count jobs run in separate lanes, so a
+  slow FIT-file fetch never delays segment-count updates, which only need
+  Strava.
 - **Manual sync or Tag button:** Run the same matching process on demand.
 
 ## Project layout
@@ -336,8 +338,10 @@ default is `{segment}: {count} {completions}`. The exact block written to each
 activity is stored so it is replaced, not duplicated, even after the template
 changes.
 
-Use **Refresh** in Recent webhook activity to check and process your latest
-Strava activity. The Strava webhook subscription can be created from either
+Recent webhook activity updates automatically while the page is open, showing
+deliveries that are queued or being retried as well as finished results. Use
+**Refresh** to check and process your latest
+Strava activity on demand. The Strava webhook subscription can be created from either
 the Gear Selector or Segment Counts page.
 
 ## Data, deployment, and limitations

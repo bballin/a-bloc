@@ -30,6 +30,12 @@ const recordEventStatement = db.prepare(`
 const descriptionBlockStatement = db.prepare(`
   SELECT description_block FROM segment_count_events WHERE athlete_id = ? AND activity_id = ?
 `);
+// Webhook deliveries that have not produced a result yet (or are being retried after an error).
+const queuedJobsStatement = db.prepare(`
+  SELECT activity_id, status, attempts, last_error, created_at FROM webhook_jobs
+  WHERE kind = 'segment_counts' AND athlete_id = ? AND status IN ('pending', 'running')
+  ORDER BY created_at DESC LIMIT ?
+`);
 
 function listTracked(athleteId) {
   return listTrackedStatement.all(athleteId);
@@ -43,8 +49,26 @@ const replaceTracked = db.transaction((athleteId, segments) => {
   }
 });
 
+// Processed events plus webhook deliveries still waiting in the queue, newest first.
 function listRecentEvents(athleteId, limit = 20) {
-  return recentEventsStatement.all(athleteId, limit);
+  const events = recentEventsStatement.all(athleteId, limit);
+  const queued = queuedJobsStatement.all(athleteId, limit).map(job => {
+    const previous = events.find(event => event.activity_id === job.activity_id);
+    return {
+      activity_id: job.activity_id,
+      status: job.status === 'running' ? 'processing' : 'queued',
+      message: job.status === 'running'
+        ? 'Updating segment counts...'
+        : job.last_error
+          ? `Retrying after error: ${job.last_error}`
+          : 'Waiting to be processed.',
+      created_at: previous ? Math.max(previous.created_at, job.created_at) : job.created_at,
+    };
+  });
+  const queuedIds = new Set(queued.map(event => event.activity_id));
+  return [...queued, ...events.filter(event => !queuedIds.has(event.activity_id))]
+    .sort((a, b) => b.created_at - a.created_at)
+    .slice(0, limit);
 }
 
 // descriptionBlock is the exact text written to Strava; null keeps the previously stored block.
