@@ -251,7 +251,7 @@
           <p>Connect a source to retrieve original FIT files for your Strava activities. FIT files are required for Gear Selector to work properly. Credentials are stored encrypted in <code>data/app.db</code>.</p>
           <div class="original-file-options">
             <div>
-              <h3>Garmin Connect</h3>
+              <h3><span class="status-light" id="garminLight" role="img"></span>Garmin Connect</h3>
               <p class="muted">Recommended if your rides come from a Garmin device. Email/password are stored encrypted; OAuth tokens are cached and refreshed automatically.</p>
               <p id="garminPauseWarning" class="status-error hidden" role="alert"></p>
               <p id="garminRelayStatus" class="muted" role="status">Checking Garmin login availability...</p>
@@ -266,7 +266,7 @@
               </form>
             </div>
             <div>
-              <h3>Wahoo</h3>
+              <h3><span class="status-light" id="wahooLight" role="img"></span>Wahoo</h3>
               <p class="muted">For rides recorded on a Wahoo ELEMNT or the Wahoo app. Connects through Wahoo's official authorization page; access tokens are stored encrypted and refreshed automatically.</p>
               <div class="row">
                 <button class="btn primary" type="button" id="wahooConnect">Connect Wahoo</button>
@@ -276,7 +276,7 @@
               </div>
             </div>
             <div>
-              <h3>Hammerhead</h3>
+              <h3><span class="status-light" id="hammerheadLight" role="img"></span>Hammerhead</h3>
               <p class="muted">For rides recorded on a Hammerhead Karoo. Uses your Hammerhead dashboard login; email/password are stored encrypted and access tokens are cached and refreshed automatically.</p>
               <form id="hammerheadForm" class="stack" data-provider="hammerhead" autocomplete="off">
                 <input type="email" name="username" placeholder="Hammerhead email" autocomplete="off" />
@@ -289,7 +289,7 @@
               </form>
             </div>
             <div>
-              <h3>COROS</h3>
+              <h3><span class="status-light" id="corosLight" role="img"></span>COROS</h3>
               <p class="muted">For activities recorded on a COROS watch or bike computer. Uses your COROS Training Hub login; email/password are stored encrypted and the access token is cached.</p>
               <form id="corosForm" class="stack" data-provider="coros" autocomplete="off">
                 <input type="email" name="username" placeholder="COROS email" autocomplete="off" />

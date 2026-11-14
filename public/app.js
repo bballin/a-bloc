@@ -435,16 +435,40 @@ function timeAgo(epochSeconds) {
 
 async function loadSettings() {
   const s = await api('/api/settings');
-  $('#garminStatus').textContent = describeCredentials(s.garmin);
   updateGarminPauseWarning(s.garmin.loginDisabledUntil);
   renderWahoo(s.wahoo);
-  for (const provider of ['hammerhead', 'coros']) {
+  for (const provider of ['garmin', 'hammerhead', 'coros']) {
     $(`#${provider}Status`).textContent = describeCredentials(s[provider]);
+    setSourceLight(provider, s[provider]);
   }
   showWahooRedirectResult();
 }
 
 const PROVIDER_NAMES = { hammerhead: 'Hammerhead', coros: 'COROS' };
+
+// Status light beside each source name: green = set up and connected,
+// yellow = not set up (or saved but never verified), red = last connection test failed.
+function setSourceLight(provider, s) {
+  const configured = 'connected' in s ? s.appConfigured && s.connected : s.hasUsername && s.hasPassword;
+  const verified = 'connected' in s ? configured : s.hasToken;
+  const [state, label] = !configured ? ['warn', 'Not set up']
+    : s.testFailed ? ['err', 'Cannot connect']
+      : verified ? ['ok', 'Connected'] : ['warn', 'Not verified yet'];
+  const light = $(`#${provider}Light`);
+  light.className = `status-light light-${state}`;
+  light.title = label;
+  light.setAttribute('aria-label', label);
+}
+
+// A connection test changes what the server knows about each source.
+async function refreshSourceLights() {
+  try {
+    const s = await api('/api/settings');
+    for (const provider of ['garmin', 'wahoo', 'hammerhead', 'coros']) setSourceLight(provider, s[provider]);
+  } catch (e) {
+    console.error('Failed to refresh source status:', e);
+  }
+}
 
 function renderWahoo(w, message) {
   const status = $('#wahooStatus');
@@ -452,10 +476,12 @@ function renderWahoo(w, message) {
   $('#wahooConnect').textContent = w.connected ? 'Reconnect Wahoo' : 'Connect Wahoo';
   $('#wahooTest').disabled = !w.connected;
   $('#wahooDisconnect').disabled = !w.connected;
+  setSourceLight('wahoo', w);
   status.className = 'muted';
   status.textContent = message || (!w.appConfigured
     ? 'Not available: the server has no Wahoo API credentials (WAHOO_CLIENT_ID / WAHOO_CLIENT_SECRET).'
-    : w.connected ? 'Connected.' : 'Not connected.');
+    : !w.connected ? 'Not connected.'
+      : w.testFailed ? 'Connected, but the last connection test failed.' : 'Connected.');
 }
 
 // The Wahoo OAuth callback redirects back with ?wahoo=connected|denied.
@@ -491,6 +517,7 @@ async function onTestWahoo() {
     status.className = 'status-error';
   } finally {
     button.disabled = false;
+    await refreshSourceLights();
   }
 }
 
@@ -523,6 +550,7 @@ async function onSaveProviderCredentials(ev) {
     });
     ev.target.reset();
     status.textContent = `Saved. ${describeCredentials(result)}`;
+    setSourceLight(provider, result);
   } catch (error) {
     status.textContent = `Error: ${error.message}`;
     status.className = 'status-error';
@@ -543,6 +571,7 @@ async function onTestProvider(provider, button) {
     status.className = 'status-error';
   } finally {
     button.disabled = false;
+    await refreshSourceLights();
   }
 }
 async function loadGarminLoginStatus() {
@@ -593,7 +622,8 @@ function updateGarminPauseWarning(disabledUntil) {
 }
 function describeCredentials(g) {
   if (!g.hasUsername || !g.hasPassword) return 'Not configured.';
-  return g.hasToken ? 'Configured (cached token).' : 'Configured.';
+  if (g.testFailed) return 'Configured, but the last connection test failed.';
+  return g.hasToken ? 'Configured (cached token).' : 'Configured, not verified yet. Use Test login.';
 }
 
 async function onSaveGarmin(ev) {
@@ -613,6 +643,7 @@ async function onSaveGarmin(ev) {
     });
     ev.target.reset();
     status.textContent = `Saved. ${describeCredentials(result)}`;
+    setSourceLight('garmin', result);
   } catch (error) {
     status.textContent = `Error: ${error.message}`;
     status.className = 'status-error';
@@ -629,6 +660,7 @@ async function onTestGarmin() {
   try {
     const r = await api('/api/settings/garmin/test', { method: 'POST' });
     status.textContent = `OK: ${r.displayName || 'logged in'}`;
+    status.className = 'status-ok';
   } catch (e) {
     status.textContent = `Error: ${e.message}`;
     status.className = 'status-error';
@@ -636,6 +668,7 @@ async function onTestGarmin() {
   } finally {
     garminTestInProgress = false;
     updateGarminPauseWarning(garminLoginDisabledUntil);
+    await refreshSourceLights();
   }
 }
 

@@ -198,7 +198,7 @@ test('signed-in routes: FIT uploads are parsed and cleaned up, local segments an
     method: 'POST', headers: { cookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: 'rider@example.com', password: 'pw' }),
   });
-  assert.deepEqual(await saved.json(), { ok: true, hasUsername: true, hasPassword: true, hasToken: false });
+  assert.deepEqual(await saved.json(), { ok: true, hasUsername: true, hasPassword: true, hasToken: false, testFailed: false });
   settings.set(77, 'coros_token', '{"accessToken":"t"}');
   await fetch(`${baseUrl}/api/settings/coros`, {
     method: 'POST', headers: { cookie, 'Content-Type': 'application/json' },

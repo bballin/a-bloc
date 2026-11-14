@@ -25,7 +25,13 @@ function saveCredentials(athleteId, prefix, tokenKeys, { username, password } = 
     setOrRemove(athleteId, key, value);
     credentialsChanged = true;
   }
-  if (credentialsChanged) for (const key of tokenKeys) settings.remove(athleteId, key);
+  if (credentialsChanged) for (const key of [...tokenKeys, `${prefix}_test_failed`]) settings.remove(athleteId, key);
+}
+
+// Remembers the outcome of the last connection test so the configuration page
+// can show a source as failing until it is tested or reconfigured successfully.
+function recordTestResult(athleteId, prefix, ok) {
+  setOrRemove(athleteId, `${prefix}_test_failed`, ok ? '' : '1');
 }
 
 router.get('/api/settings', requireAuth, (req, res) => {
@@ -51,12 +57,18 @@ router.post('/api/settings/garmin', requireAuth, (req, res) => {
 });
 
 router.post('/api/settings/garmin/test', requireAuth, async (req, res) => {
+  const athleteId = req.session.athleteId;
   try {
     garmin.assertLoginAllowed();
-    const client = await garmin.getClient(req.session.athleteId);
+    const client = await garmin.getClient(athleteId);
     if (!client) return res.status(400).json({ ok: false, error: 'Garmin is not configured.' });
-    res.json({ ok: true });
+    // Fetching the profile proves the tokens work, including cached ones.
+    const profile = await client.getUserProfile();
+    recordTestResult(athleteId, 'garmin', true);
+    res.json({ ok: true, displayName: (profile && (profile.fullName || profile.userName)) || null });
   } catch (e) {
+    // A login pause says nothing about whether the saved credentials work.
+    if (e.status !== 429) recordTestResult(athleteId, 'garmin', false);
     res.status(e.status === 429 ? 429 : 400).json({
       ok: false,
       error: e.message,
@@ -90,6 +102,7 @@ router.get('/auth/wahoo/callback', async (req, res) => {
   }
   try {
     await wahoo.exchangeCode(req.session.athleteId, String(code));
+    recordTestResult(req.session.athleteId, 'wahoo', true);
     res.redirect(303, '/?wahoo=connected#configurationPanel');
   } catch (e) {
     console.error('[wahoo] Token exchange failed:', e.message);
@@ -105,6 +118,7 @@ router.post('/api/settings/wahoo/disconnect', requireAuth, async (req, res) => {
     // Tokens are cleared locally even if Wahoo could not be reached.
     console.warn('[wahoo] Deauthorization failed:', e.message);
   }
+  recordTestResult(athleteId, 'wahoo', true);
   res.json({ ok: true, ...settings.summary(athleteId).wahoo });
 });
 
@@ -114,8 +128,10 @@ router.post('/api/settings/wahoo/test', requireAuth, async (req, res) => {
   if (!wahoo.isConnected(athleteId)) return res.status(400).json({ ok: false, error: 'Wahoo is not connected.' });
   try {
     const user = await wahoo.getUser(athleteId);
+    recordTestResult(athleteId, 'wahoo', true);
     res.json({ ok: true, displayName: [user.first, user.last].filter(Boolean).join(' ') || null });
   } catch (e) {
+    recordTestResult(athleteId, 'wahoo', false);
     res.status(400).json({ ok: false, error: e.message });
   }
 });
@@ -134,8 +150,10 @@ for (const [prefix, service] of [['hammerhead', hammerhead], ['coros', coros]]) 
     }
     try {
       await service.testConnection(athleteId);
+      recordTestResult(athleteId, prefix, true);
       res.json({ ok: true });
     } catch (e) {
+      recordTestResult(athleteId, prefix, false);
       res.status(400).json({ ok: false, error: e.message });
     }
   });

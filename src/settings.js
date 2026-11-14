@@ -77,21 +77,25 @@ function summary(athleteId) {
       hasUsername: keys.has('garmin_username'),
       hasPassword: keys.has('garmin_password'),
       hasToken: keys.has('garmin_oauth2'),
+      testFailed: keys.has('garmin_test_failed'),
       loginDisabledUntil: getGarminLoginDisabledUntil(),
     },
     wahoo: {
       appConfigured: !!(config.wahoo.clientId && config.wahoo.clientSecret),
       connected: keys.has('wahoo_refresh_token'),
+      testFailed: keys.has('wahoo_test_failed'),
     },
     hammerhead: {
       hasUsername: keys.has('hammerhead_username'),
       hasPassword: keys.has('hammerhead_password'),
       hasToken: keys.has('hammerhead_token'),
+      testFailed: keys.has('hammerhead_test_failed'),
     },
     coros: {
       hasUsername: keys.has('coros_username'),
       hasPassword: keys.has('coros_password'),
       hasToken: keys.has('coros_token'),
+      testFailed: keys.has('coros_test_failed'),
     },
     strava_web: {
       hasUsername: keys.has('strava_username'),

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m 'Add status lights and green test results for activity file sources *)"
+    ]
+  }
+}

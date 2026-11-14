@@ -231,6 +231,6 @@ test('provider credentials and tokens are encrypted at rest', () => {
   assert.notEqual(raw('coros_password'), 'secret');
   assert.ok(!raw('coros_token').includes('accessToken'));
   const summary = settings.summary(10);
-  assert.deepEqual(summary.coros, { hasUsername: true, hasPassword: true, hasToken: true });
+  assert.deepEqual(summary.coros, { hasUsername: true, hasPassword: true, hasToken: true, testFailed: false });
   assert.equal(summary.wahoo.appConfigured, true);
 });

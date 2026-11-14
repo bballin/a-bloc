@@ -10,6 +10,7 @@
   --border: #2a2f3a;
   --ok: #34d399;
   --err: #f87171;
+  --warn: #fbbf24;
 }
 
 * { box-sizing: border-box; }
@@ -292,6 +293,12 @@ tr:last-child td { border-bottom: none; }
 .original-activities-actions { margin-top: 12px; }
 .original-activities-actions .muted { font-size: 13px; }
 
+.status-light {
+  display: inline-block; width: 10px; height: 10px; margin-right: 8px;
+  border-radius: 50%; background: var(--warn); vertical-align: 1px;
+}
+.status-light.light-ok { background: var(--ok); }
+.status-light.light-err { background: var(--err); }
 .status-ok { color: var(--ok); }
 .status-error, .status-no_mapping, .status-no_activity { color: var(--err); }
 
