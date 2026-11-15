@@ -317,4 +317,58 @@ test('routes API lists Strava routes with string IDs and decoded start coordinat
   assert.equal(routes[1].type, 'Run');
   assert.equal(routes[1].start_lat, null);
   assert.equal(routes[1].start_lng, null);
+
+  const cached = await (await request('/api/routes', { headers: { cookie } })).json();
+  assert.equal(listRoutes.mock.callCount(), 1, 'a second request is served from the local cache');
+  assert.deepEqual(cached.routes, routes);
+  assert.ok(Number.isInteger(cached.syncedAt));
+
+  const post = path => request(path, { method: 'POST', headers: { cookie } });
+
+  // Fetch new: stops at the first cached route and adds only the routes before it.
+  listRoutes.mock.mockImplementation(async (_athleteId, { stopAt }) => {
+    const page = [{ id_str: '900', name: 'Brand new', type: 1 }, { id_str: '42', name: 'Edited on Strava', type: 2 }];
+    assert.equal(stopAt(page[0]), false);
+    assert.equal(stopAt(page[1]), true, 'paging stops at a route that is already cached');
+    return page;
+  });
+  const fetchedNew = await (await post('/api/routes/sync-new')).json();
+  assert.equal(fetchedNew.added, 1);
+  assert.deepEqual(fetchedNew.routes.map(route => [route.id, route.name]).sort(),
+    [['3344556677889900123', 'Hill loop'], ['42', 'No map'], ['900', 'Brand new']],
+    'fetch new leaves existing routes untouched');
+
+  // Resync: replaces the cache, capturing edits and dropping routes deleted on Strava.
+  listRoutes.mock.mockImplementation(async (_athleteId, options) => {
+    assert.equal(options, undefined, 'resync reads every page');
+    return [{ id_str: '42', name: 'Renamed', type: 2 }];
+  });
+  const resynced = await (await post('/api/routes/resync')).json();
+  assert.equal(resynced.fetched, 1);
+  assert.deepEqual(resynced.routes.map(route => [route.id, route.name]), [['42', 'Renamed']]);
+
+  listRoutes.mock.mockImplementation(async () => { throw new Error('Strava is down'); });
+  const failed = await post('/api/routes/resync');
+  assert.equal(failed.status, 502);
+  assert.equal((await failed.json()).error, 'Strava is down');
+  assert.equal((await (await request('/api/routes', { headers: { cookie } })).json()).routes.length, 1,
+    'a failed resync keeps the existing cache');
+});
+
+test('listRoutes pages until a short page, or until stopAt matches', async (t) => {
+  const strava = require('../src/strava');
+  const requested = [];
+  t.mock.method(globalThis, 'fetch', async url => {
+    const page = Number(new URL(url).searchParams.get('page'));
+    requested.push(page);
+    const routes = page < 3 ? [{ id_str: `${page}a` }, { id_str: `${page}b` }] : [{ id_str: `${page}a` }];
+    return new Response(JSON.stringify(routes), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  });
+  assert.equal((await strava.listRoutes(77, { perPage: 2 })).length, 5);
+  assert.deepEqual(requested, [1, 2, 3]);
+
+  requested.length = 0;
+  const partial = await strava.listRoutes(77, { perPage: 2, stopAt: route => route.id_str === '1b' });
+  assert.deepEqual(partial.map(route => route.id_str), ['1a', '1b']);
+  assert.deepEqual(requested, [1], 'a page containing a known route ends paging');
 });

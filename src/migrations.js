@@ -230,6 +230,36 @@ const MIGRATIONS = [
       db.exec('ALTER TABLE athletes ADD COLUMN profile TEXT');
     },
   },
+  {
+    version: 7,
+    name: 'cache Strava routes per athlete',
+    up(db) {
+      db.exec(`
+        CREATE TABLE athlete_routes (
+          athlete_id INTEGER NOT NULL,
+          route_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT,
+          type TEXT,
+          sub_type TEXT,
+          distance REAL,
+          elevation_gain REAL,
+          estimated_moving_time REAL,
+          private INTEGER NOT NULL DEFAULT 0,
+          starred INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT,
+          start_lat REAL,
+          start_lng REAL,
+          PRIMARY KEY (athlete_id, route_id)
+        );
+
+        CREATE TABLE athlete_route_syncs (
+          athlete_id INTEGER PRIMARY KEY,
+          synced_at INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 function migrate(db, migrations = MIGRATIONS) {

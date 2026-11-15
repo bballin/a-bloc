@@ -157,7 +157,9 @@ async function listStarredSegments(athleteId, perPage = 100) {
   }
 }
 
-async function listRoutes(athleteId, perPage = 100) {
+// Strava lists routes newest first. Pass stopAt to end paging after the first page containing
+// a route it matches, so fetching only new routes usually costs a single request.
+async function listRoutes(athleteId, { perPage = 100, stopAt = null } = {}) {
   const routes = [];
   let page = 1;
   while (true) {
@@ -165,7 +167,7 @@ async function listRoutes(athleteId, perPage = 100) {
     if (!res.ok) throw new Error(`Failed to list routes: ${res.status} ${await res.text()}`);
     const batch = await res.json();
     routes.push(...batch);
-    if (batch.length < perPage) return routes;
+    if (batch.length < perPage || (stopAt && batch.some(stopAt))) return routes;
     page += 1;
   }
 }

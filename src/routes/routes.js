@@ -1,6 +1,7 @@
 const express = require('express');
 const strava = require('../strava');
 const { decodeFirstPoint } = require('../polyline');
+const routeStore = require('../store/routes');
 const { requireAuth } = require('./middleware');
 
 const router = express.Router();
@@ -29,14 +30,51 @@ function summarizeRoute(route) {
   };
 }
 
+const routeId = route => String(route.id_str || route.id);
+
+// Re-reads every route, capturing edits and dropping routes deleted on Strava.
+async function resync(athleteId) {
+  const routes = await strava.listRoutes(athleteId);
+  routeStore.replaceForAthlete(athleteId, routes.map(summarizeRoute));
+  return { fetched: routes.length };
+}
+
+// Pages only until a route that is already cached, then stores the routes not seen before.
+async function syncNew(athleteId) {
+  const known = routeStore.idsForAthlete(athleteId);
+  const routes = await strava.listRoutes(athleteId, { stopAt: route => known.has(routeId(route)) });
+  const added = routes.filter(route => !known.has(routeId(route)));
+  routeStore.upsertForAthlete(athleteId, added.map(summarizeRoute));
+  return { fetched: routes.length, added: added.length };
+}
+
+function listResponse(athleteId, extra = {}) {
+  return { routes: routeStore.listForAthlete(athleteId), syncedAt: routeStore.syncedAt(athleteId), ...extra };
+}
+
+function syncHandler(sync) {
+  return async (req, res) => {
+    try {
+      res.json(listResponse(req.session.athleteId, await sync(req.session.athleteId)));
+    } catch (e) {
+      res.status(502).json({ error: e.message });
+    }
+  };
+}
+
+// Serves the locally cached routes. Strava is only queried here the first time, before anything is cached.
 router.get('/api/routes', requireAuth, async (req, res) => {
+  const athleteId = req.session.athleteId;
   try {
-    const routes = await strava.listRoutes(req.session.athleteId);
-    res.json({ routes: routes.map(summarizeRoute) });
+    if (routeStore.syncedAt(athleteId) == null) await resync(athleteId);
   } catch (e) {
-    res.status(502).json({ error: e.message });
+    return res.status(502).json({ error: e.message });
   }
+  res.json(listResponse(athleteId));
 });
+
+router.post('/api/routes/sync-new', requireAuth, syncHandler(syncNew));
+router.post('/api/routes/resync', requireAuth, syncHandler(resync));
 
 module.exports = router;
 module.exports.summarizeRoute = summarizeRoute;

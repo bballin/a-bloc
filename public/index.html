@@ -178,19 +178,52 @@
           <div class="section-heading">
             <div>
               <h2>Saved Routes</h2>
-              <p>Browse the routes saved on your Strava account.</p>
+              <p>Browse the routes saved on your Strava account. Routes are stored locally: <strong>Fetch new</strong> adds routes created since the last fetch, and <strong>Resync all</strong> picks up edits and deletions.</p>
             </div>
             <div class="row">
-              <button class="btn" type="button" id="refreshRoutes">Fetch routes</button>
+              <button class="btn primary" type="button" id="fetchNewRoutes">Fetch new</button>
+              <button class="btn" type="button" id="resyncRoutes">Resync all</button>
               <a class="btn" href="/routes-map.html" target="_blank" rel="noreferrer">View start map</a>
             </div>
           </div>
-          <div id="routesStatus" class="muted"></div>
+          <div class="row route-filters">
+            <label for="routeTypeFilter">Type</label>
+            <select id="routeTypeFilter"><option value="">All types</option></select>
+            <button class="btn" type="button" id="routeLocationFilter">Filter by location</button>
+            <span id="routeLocationSummary" class="route-location-summary hidden">
+              <span></span>
+              <button class="btn btn-sm" type="button" id="clearRouteLocation">Clear</button>
+            </span>
+          </div>
+          <div id="routesStatus" class="muted" role="status"></div>
           <table id="routesTable">
-            <thead><tr><th>Route</th><th>Type</th><th>Distance</th><th>Elevation gain</th><th>Created</th><th>ID</th></tr></thead>
-            <tbody><tr><td colspan="6" class="muted">Select Fetch routes to load the list from Strava.</td></tr></tbody>
+            <thead>
+              <tr>
+                <th>Route</th><th>Type</th>
+                <th><button class="table-sort" type="button" id="sortRoutesByDistance">Distance <span aria-hidden="true"></span></button></th>
+                <th>Elevation gain</th><th>Created</th><th>ID</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
           </table>
         </div>
+
+        <dialog id="routeLocationDialog" class="map-dialog" aria-labelledby="routeLocationTitle">
+          <form method="dialog" class="stack">
+            <h2 id="routeLocationTitle">Filter routes by start location</h2>
+            <p class="muted">Click the map to set the center point, then choose a radius.</p>
+            <div id="routeLocationMap" class="map-dialog-map"></div>
+            <div class="row">
+              <label for="routeRadius">Radius</label>
+              <input type="range" id="routeRadius" min="1" max="200" step="1" value="25" />
+              <output id="routeRadiusValue" for="routeRadius"></output>
+            </div>
+            <div class="row map-dialog-actions">
+              <button class="btn" value="cancel" type="submit">Cancel</button>
+              <button class="btn primary" value="apply" type="submit" id="applyRouteLocation" disabled>Apply filter</button>
+            </div>
+          </form>
+        </dialog>
       </section>
 
       <section id="segmentCountsPanel" class="tab-panel hidden">
@@ -339,6 +372,7 @@
   <script src="/units.js"></script>
   <script src="/common.js"></script>
   <script src="/app.js"></script>
+  <script src="/routes.js"></script>
   <script src="/segment-template.js"></script>
   <script src="/segment-counts.js"></script>
 </body>

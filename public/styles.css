@@ -329,3 +329,17 @@ tr:last-child td { border-bottom: none; }
 .switch input:checked + .switch-track::after { transform: translateX(16px); background: white; }
 .switch input:focus-visible + .switch-track { outline: 2px solid var(--accent-2); outline-offset: 2px; }
 .switch input:disabled + .switch-track { opacity: 0.55; }
+
+.route-filters { margin: 4px 0 12px; }
+.route-location-summary { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.map-dialog {
+  width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 20px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--text);
+}
+.map-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.map-dialog h2 { margin: 0; }
+.map-dialog p { margin: 0; }
+.map-dialog-map { height: min(55vh, 460px); min-height: 260px; border: 1px solid var(--border); border-radius: 8px; cursor: crosshair; }
+.map-dialog input[type="range"] { flex: 1; min-width: 160px; padding: 0; }
+.map-dialog output { min-width: 64px; font-variant-numeric: tabular-nums; }
+.map-dialog-actions { justify-content: flex-end; }

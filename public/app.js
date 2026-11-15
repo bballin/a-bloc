@@ -62,7 +62,6 @@ async function init() {
     switchTab(requestedPanel.id);
   }
   $('#refreshSegments').onclick = loadStarredSegments;
-  $('#refreshRoutes').onclick = loadRoutes;
   $('#exportSegments').onclick = () => { window.location.href = '/api/segments/export'; };
   $('#unstarAllSegments').onclick = onUnstarAllSegments;
   $('#segmentImportFile').onchange = onImportSegments;
@@ -133,6 +132,7 @@ function switchTab(panelId) {
     panel.classList.toggle('hidden', panel.id !== panelId);
   });
   if (panelId === 'segmentCatalogPanel') loadLocalSegments();
+  if (panelId === 'routesPanel' && signedIn) loadRoutes();
 }
 
 async function loadStarredSegments() {
@@ -146,35 +146,6 @@ async function loadStarredSegments() {
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan="6" class="status-error">${escapeHtml(e.message)}</td></tr>`;
   }
-}
-
-async function loadRoutes() {
-  const tbody = $('#routesTable tbody');
-  tbody.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
-  $('#routesStatus').textContent = '';
-  try {
-    const { routes } = await api('/api/routes');
-    renderRouteRows(tbody, routes);
-    $('#routesStatus').textContent = `${routes.length} saved route${routes.length === 1 ? '' : 's'}.`;
-  } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="6" class="status-error">${escapeHtml(e.message)}</td></tr>`;
-  }
-}
-
-function renderRouteRows(tbody, routes) {
-  if (!routes.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="muted">No routes found.</td></tr>';
-    return;
-  }
-  tbody.innerHTML = routes.map(route => `
-    <tr>
-      <td><a href="https://www.strava.com/routes/${encodeURIComponent(route.id)}" target="_blank" rel="noreferrer">${escapeHtml(route.name || route.id)}</a>${route.private ? ' <span class="muted">(private)</span>' : ''}</td>
-      <td>${escapeHtml([route.type, route.sub_type].filter(Boolean).join(' · '))}</td>
-      <td>${formatDistance(route.distance)}</td>
-      <td>${route.elevation_gain == null ? '' : `${escapeHtml(Math.round(route.elevation_gain))} m`}</td>
-      <td>${route.created_at ? escapeHtml(new Date(route.created_at).toLocaleDateString()) : ''}</td>
-      <td><code>${escapeHtml(route.id)}</code></td>
-    </tr>`).join('');
 }
 
 function renderSegmentRows(tbody, segments, withCheckbox) {
