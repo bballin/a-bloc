@@ -162,6 +162,50 @@ test('Wahoo refreshes an expired token, matches a workout and downloads its summ
   assert.equal(calls[2].options.headers.Authorization, undefined, 'CDN download is unauthenticated');
 });
 
+test('Wahoo downloads by workout ID through the workout endpoint, not workout_summary', async () => {
+  settings.set(13, 'wahoo_access_token', 'token');
+  settings.set(13, 'wahoo_refresh_token', 'refresh');
+  settings.set(13, 'wahoo_token_expires_at', String(Math.floor(Date.now() / 1000) + 3600));
+  const calls = mockFetch([
+    [/\/workout_summary/, () => json({ error: 'You are not authorized to view this workout summary' }, 401)],
+    [/api\.wahooligan\.com\/v1\/workouts\/515379298$/, () => json({ id: 515379298, workout_summary: { file: { url: 'https://cdn.wahooligan.com/515379298.fit' } } })],
+    [/cdn\.wahooligan\.com/, () => new Response(FIT)],
+  ]);
+
+  assert.deepEqual(readAndCleanup(await wahoo.downloadOriginalFit(13, { id: '515379298' })), FIT);
+  assert.ok(calls.every(c => !/workout_summary/.test(c.url)), 'never calls the workout_summary endpoint');
+});
+
+test('Wahoo does not refresh the token when a 401 only refuses access to a resource', async () => {
+  settings.set(14, 'wahoo_access_token', 'token');
+  settings.set(14, 'wahoo_refresh_token', 'refresh');
+  settings.set(14, 'wahoo_token_expires_at', String(Math.floor(Date.now() / 1000) + 3600));
+  const calls = mockFetch([
+    [/oauth\/token/, () => json({ access_token: 'new', refresh_token: 'refresh-2' })],
+    [/\/v1\/workouts\/9$/, () => json({ error: 'You are not authorized to view this workout' }, 401)],
+  ]);
+
+  await assert.rejects(wahoo.downloadOriginalFit(14, { id: 9 }), /HTTP 401 .*not authorized to view this workout/);
+  assert.equal(calls.length, 1, 'no refresh and no retry');
+  assert.equal(settings.get(14, 'wahoo_refresh_token'), 'refresh');
+});
+
+test('Wahoo refreshes and retries when the access token is rejected as invalid', async () => {
+  settings.set(15, 'wahoo_access_token', 'revoked');
+  settings.set(15, 'wahoo_refresh_token', 'refresh');
+  settings.set(15, 'wahoo_token_expires_at', String(Math.floor(Date.now() / 1000) + 3600));
+  const calls = mockFetch([
+    [/oauth\/token/, () => json({ access_token: 'new', refresh_token: 'refresh-2', expires_in: 7200 })],
+    [/\/v1\/user$/, (url, options) => (options.headers.Authorization === 'Bearer new'
+      ? json({ id: 1 })
+      : new Response('', { status: 401, headers: { 'WWW-Authenticate': 'Bearer realm="Doorkeeper", error="invalid_token", error_description="The access token expired"' } }))],
+  ]);
+
+  assert.deepEqual(await wahoo.getUser(15), { id: 1 });
+  assert.equal(calls.length, 3, 'rejected call, refresh, retry');
+  assert.equal(settings.get(15, 'wahoo_refresh_token'), 'refresh-2');
+});
+
 test('Wahoo authorize URL carries the state, callback and read scopes', () => {
   const url = new URL(wahoo.authorizeUrl('abc'));
   assert.equal(url.origin, 'https://api.wahooligan.com');

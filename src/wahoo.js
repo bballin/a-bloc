@@ -91,6 +91,17 @@ async function getAccessToken(athleteId) {
   return refresh(athleteId);
 }
 
+// A 401 also means "this token may not see that resource" (e.g. another app's
+// workout summary). Refreshing revokes the old token, so only refresh when
+// Wahoo says the token itself is bad (OAuth `invalid_token`), or gives no reason.
+function isTokenRejection(res, body) {
+  const challenge = res.headers.get('www-authenticate') || '';
+  if (/invalid_token/i.test(challenge)) return true;
+  const text = (body || '').trim();
+  if (!text) return true;
+  return /invalid_token|token[^"]*\b(expired|revoked|invalid)\b/i.test(text);
+}
+
 async function api(athleteId, apiPath, options = {}) {
   if (!isAppConfigured()) throw new Error('Wahoo integration is not configured on this server (WAHOO_CLIENT_ID / WAHOO_CLIENT_SECRET).');
   const send = token => fetch(`${WAHOO_BASE}${apiPath}`, {
@@ -98,9 +109,17 @@ async function api(athleteId, apiPath, options = {}) {
     headers: { Accept: 'application/json', ...(options.headers || {}), Authorization: `Bearer ${token}` },
   });
   let res = await send(await getAccessToken(athleteId));
-  if (res.status === 401) res = await send(await refresh(athleteId));
+  let body = null;
+  if (res.status === 401) {
+    body = await res.text();
+    if (isTokenRejection(res, body)) {
+      res = await send(await refresh(athleteId));
+      body = null;
+    }
+  }
   if (!res.ok) {
-    const error = new Error(`Wahoo API ${apiPath} failed: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+    if (body === null) body = await res.text();
+    const error = new Error(`Wahoo API ${apiPath} failed: HTTP ${res.status} ${body.slice(0, 200)}`);
     error.status = res.status;
     throw error;
   }
@@ -141,8 +160,9 @@ async function findWorkoutByStartTime(athleteId, startTime, { perPage = 30, wind
 async function downloadOriginalFit(athleteId, workout) {
   let url = summaryFileUrl(workout);
   if (!url) {
-    const summary = await api(athleteId, `/v1/workouts/${encodeURIComponent(workout.id)}/workout_summary`);
-    url = summary && summary.file && summary.file.url;
+    // The workout itself embeds its summary. The standalone
+    // /workout_summary endpoint answers 401 for workouts this app didn't create.
+    url = summaryFileUrl(await api(athleteId, `/v1/workouts/${encodeURIComponent(workout.id)}`));
   }
   if (!url) throw new Error(`Wahoo workout ${workout.id} has no FIT file.`);
   // CDN downloads are unauthenticated and do not count as API calls.
