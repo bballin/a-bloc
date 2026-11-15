@@ -212,8 +212,12 @@ avoids handling passwords entirely.
 The app requests these scopes:
 
 ```text
-read, activity:read_all, activity:write, profile:read_all, profile:write
+read, read_all, activity:read_all, activity:write, profile:read_all, profile:write
 ```
+
+`read_all` lets the Routes page list your private routes as well as public ones.
+If you connected before granting this scope, disconnect and connect again to
+authorize it.
 
 `profile:write` is used by the Segmentation page to star and unstar segments. If
 you connected before granting this scope, disconnect and connect again to

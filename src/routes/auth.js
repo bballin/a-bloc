@@ -10,7 +10,7 @@ router.get('/auth/login', (req, res) => {
     response_type: 'code',
     redirect_uri: config.oauthCallbackUrl,
     approval_prompt: 'auto',
-    scope: 'read,activity:read_all,activity:write,profile:read_all,profile:write',
+    scope: 'read,read_all,activity:read_all,activity:write,profile:read_all,profile:write',
   });
   res.redirect(`https://www.strava.com/oauth/authorize?${params}`);
 });

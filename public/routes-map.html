@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Route Start Map</title>
+  <link rel="icon" type="image/svg+xml" href="/brand-icon.svg" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    main { max-width: 1400px; }
+    #routeMap { height: min(72vh, 760px); min-height: 420px; border: 1px solid var(--border); border-radius: 8px; }
+    .route-popup-actions { margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Route Start Map</h1>
+    <div class="header-actions">
+      <a class="btn" href="/#routesPanel">Back to app</a>
+      <div class="units-control" aria-label="Distance units">
+        <span>Units</span>
+        <div class="units-options" role="group" aria-label="Distance unit">
+          <button type="button" data-unit="km">KM</button>
+          <span aria-hidden="true">|</span>
+          <button type="button" data-unit="mi">Miles</button>
+        </div>
+      </div>
+    </div>
+  </header>
+  <main>
+    <p id="mapStatus" class="muted">Loading routes from Strava…</p>
+    <div id="routeMap" aria-label="Map of saved route start locations"></div>
+  </main>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="/units.js"></script>
+  <script src="/common.js"></script>
+  <script>
+    async function loadMap() {
+      const status = document.getElementById('mapStatus');
+      const map = L.map('routeMap').setView([20, 0], 2);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
+
+      const { routes } = await api('/api/routes');
+      const points = routes.filter(route => Number.isFinite(route.start_lat) && Number.isFinite(route.start_lng));
+      points.forEach(route => {
+        L.marker([route.start_lat, route.start_lng], { title: route.name || route.id, alt: route.name || route.id })
+          .addTo(map)
+          .bindPopup(routePopup(route));
+      });
+
+      if (points.length === 1) map.setView([points[0].start_lat, points[0].start_lng], 13);
+      if (points.length > 1) map.fitBounds(points.map(route => [route.start_lat, route.start_lng]), { padding: [32, 32] });
+      const missing = routes.length - points.length;
+      status.textContent = points.length
+        ? `${points.length} route start${points.length === 1 ? '' : 's'} shown.${missing ? ` ${missing} route${missing === 1 ? ' has' : 's have'} no map data.` : ''}`
+        : routes.length ? 'None of your routes include map data.' : 'No saved routes found on your Strava account.';
+    }
+
+    function routePopup(route) {
+      const type = [route.type, route.sub_type].filter(Boolean).join(' · ');
+      return `<strong>${escapeHtml(route.name || route.id)}</strong>
+        ${type ? `<div>${escapeHtml(type)}</div>` : ''}
+        ${Number.isFinite(route.distance) ? `<div><span data-distance-meters="${route.distance}"></span></div>` : ''}
+        ${Number.isFinite(route.elevation_gain) ? `<div>Elevation gain: ${escapeHtml(Math.round(route.elevation_gain))} m</div>` : ''}
+        ${route.private ? '<div class="muted">Private</div>' : ''}
+        <div class="route-popup-actions">
+          <a href="https://www.strava.com/routes/${encodeURIComponent(route.id)}" target="_blank" rel="noreferrer">View on Strava</a>
+        </div>`;
+    }
+
+    loadMap().catch(error => {
+      document.getElementById('mapStatus').textContent = error.message;
+    });
+  </script>
+</body>
+</html>

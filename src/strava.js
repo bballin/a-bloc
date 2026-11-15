@@ -157,6 +157,19 @@ async function listStarredSegments(athleteId, perPage = 100) {
   }
 }
 
+async function listRoutes(athleteId, perPage = 100) {
+  const routes = [];
+  let page = 1;
+  while (true) {
+    const res = await api(athleteId, `/athletes/${encodeURIComponent(athleteId)}/routes?per_page=${perPage}&page=${page}`);
+    if (!res.ok) throw new Error(`Failed to list routes: ${res.status} ${await res.text()}`);
+    const batch = await res.json();
+    routes.push(...batch);
+    if (batch.length < perPage) return routes;
+    page += 1;
+  }
+}
+
 async function getSegment(athleteId, segmentId) {
   const res = await api(athleteId, `/segments/${encodeURIComponent(segmentId)}`);
   if (!res.ok) throw new Error(`Failed to fetch segment ${segmentId}: ${res.status} ${await res.text()}`);
@@ -194,6 +207,7 @@ module.exports = {
   createWebhookSubscription,
   deleteWebhookSubscription,
   listStarredSegments,
+  listRoutes,
   getSegment,
   setSegmentStarred,
 };

@@ -286,3 +286,35 @@ test('tracked segments accept ten IDs and reject eleven without changing saved s
   assert.equal(getSegment.mock.callCount(), 10);
   assert.deepEqual(store.listTracked(77).map(segment => segment.segment_id).sort((a, b) => Number(a) - Number(b)), ids);
 });
+
+test('routes API lists Strava routes with string IDs and decoded start coordinates', async (t) => {
+  const signature = require('cookie-signature');
+  const sessionStore = require('../src/session-store');
+  const strava = require('../src/strava');
+  assert.equal((await request('/api/routes')).status, 401);
+  await new Promise((resolve, reject) => sessionStore.set('routes-list', {
+    cookie: { originalMaxAge: 60_000 }, athleteId: 77,
+  }, error => (error ? reject(error) : resolve())));
+  const cookie = `connect.sid=${encodeURIComponent(`s:${signature.sign('routes-list', config.sessionSecret)}`)}`;
+  const listRoutes = t.mock.method(strava, 'listRoutes', async () => [
+    {
+      id: 3344556677889900000, id_str: '3344556677889900123', name: 'Hill loop', type: 1, sub_type: 1,
+      distance: 42195.5, elevation_gain: 612.4, private: true, created_at: '2026-01-02T03:04:05Z',
+      map: { summary_polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' },
+    },
+    { id_str: '42', name: 'No map', type: 2 },
+  ]);
+  const res = await request('/api/routes', { headers: { cookie } });
+  assert.equal(res.status, 200);
+  const { routes } = await res.json();
+  assert.equal(listRoutes.mock.calls[0].arguments[0], 77);
+  assert.equal(routes[0].id, '3344556677889900123');
+  assert.equal(routes[0].type, 'Ride');
+  assert.equal(routes[0].sub_type, 'Road');
+  assert.equal(routes[0].private, true);
+  assert.equal(routes[0].start_lat, 38.5);
+  assert.equal(routes[0].start_lng, -120.2);
+  assert.equal(routes[1].type, 'Run');
+  assert.equal(routes[1].start_lat, null);
+  assert.equal(routes[1].start_lng, null);
+});

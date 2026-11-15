@@ -48,6 +48,7 @@ function createApp({ queue, isShuttingDown = () => false }) {
   app.use(require('./routes/settings'));
   app.use(require('./routes/segments'));
   app.use(require('./routes/segment-counts'));
+  app.use(require('./routes/routes'));
 
   return app;
 }

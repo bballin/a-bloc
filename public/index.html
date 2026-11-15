@@ -31,6 +31,7 @@
           <button class="tab" type="button" data-tab="segmentCatalogPanel" aria-selected="false">Database</button>
           <button class="tab" type="button" data-tab="segmentationPanel" aria-selected="false">Manage</button>
         </div>
+        <button class="tab" type="button" data-tab="routesPanel" aria-selected="false">Routes</button>
         <button class="tab tab-icon" type="button" data-tab="configurationPanel" aria-label="Configure" title="Configure" aria-selected="false">
           <span>Configure</span>
           <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
@@ -168,6 +169,26 @@
               </tr>
             </thead>
             <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="routesPanel" class="tab-panel hidden">
+        <div class="card span-2">
+          <div class="section-heading">
+            <div>
+              <h2>Saved Routes</h2>
+              <p>Browse the routes saved on your Strava account.</p>
+            </div>
+            <div class="row">
+              <button class="btn" type="button" id="refreshRoutes">Fetch routes</button>
+              <a class="btn" href="/routes-map.html" target="_blank" rel="noreferrer">View start map</a>
+            </div>
+          </div>
+          <div id="routesStatus" class="muted"></div>
+          <table id="routesTable">
+            <thead><tr><th>Route</th><th>Type</th><th>Distance</th><th>Elevation gain</th><th>Created</th><th>ID</th></tr></thead>
+            <tbody><tr><td colspan="6" class="muted">Select Fetch routes to load the list from Strava.</td></tr></tbody>
           </table>
         </div>
       </section>
